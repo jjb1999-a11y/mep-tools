@@ -141,6 +141,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-12">
 
         {/* Header */}
+        <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition mb-4 inline-block">← Back to tools</a>
         <h1 className="text-3xl font-bold text-blue-400 mb-8">Duct Sizer</h1>
 
         <div className="flex flex-col lg:flex-row gap-6 items-start">
