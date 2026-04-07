@@ -1,8 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-
 const IPC_FIXTURES = [
   { key: 'wc_flushvalve',  label: 'Water Closet (Flushometer)',  wsfu: 10,  cold: 10,   hot: 0    },
   { key: 'wc_flushtank',   label: 'Water Closet (Flush Tank)',   wsfu: 2.5, cold: 2.5,  hot: 0    },
@@ -35,7 +33,6 @@ const UPC_FIXTURES = [
   { key: 'hose_bibb',      label: 'Hose Bibb',                   wsfu: 3,   cold: 3,    hot: 0    },
 ];
 
-// Service pipe sizes — Type L Copper internal diameters
 const SERVICE_PIPES = [
   { label: '¾"',  id: 0.785 },
   { label: '1"',  id: 1.025 },
@@ -47,7 +44,6 @@ const SERVICE_PIPES = [
   { label: '4"',  id: 3.905 },
 ];
 
-// AWWA M22 meter capacities
 const METERS = [
   { label: '⅝"',  maxContinuous: 20,   maxPeak: 30   },
   { label: '¾"',  maxContinuous: 30,   maxPeak: 50   },
@@ -59,12 +55,12 @@ const METERS = [
   { label: '6"',  maxContinuous: 1000, maxPeak: 1500 },
 ];
 
-// IPC Table E103.3(3) WSFU → GPM
 const WSFU_TO_GPM_FV = [
   [1,1],[2,2],[3,3],[4,4],[5,5],[6,5.5],[8,6.5],[10,8],[15,11],[20,14],
   [25,17],[30,19.5],[40,22],[50,25],[75,32],[100,42],[150,65],[180,85.5],
   [200,95],[300,130],[400,160],[500,185],
 ];
+
 const WSFU_TO_GPM_FT = [
   [1,1],[2,2],[3,3],[4,4],[5,5],[6,5.5],[8,6.5],[10,7.5],[15,9.5],[20,11.5],
   [25,13],[30,14.5],[40,17],[50,19.5],[75,25],[100,29],[150,35],[200,40],
@@ -106,23 +102,20 @@ function calcPD(gpm, idIn, lengthFt) {
   return f * (100 / D) * V * V / (2 * 32.174) * 0.4335 * (lengthFt / 100);
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
 export default function WaterServiceSizer() {
-  const [code,         setCode]         = useState('IPC');
-  const [flushValve,   setFlushValve]   = useState(true);
-  const [counts,       setCounts]       = useState({});
-  const [contLoad,     setContLoad]     = useState('');
-  const [streetPSI,    setStreetPSI]    = useState('60');
-  const [elevation,    setElevation]    = useState('0');
-  const [serviceLen,   setServiceLen]   = useState('50');
-  const [results,      setResults]      = useState(null);
+  const [code,       setCode]       = useState('IPC');
+  const [counts,     setCounts]     = useState({});
+  const [contLoad,   setContLoad]   = useState('');
+  const [streetPSI,  setStreetPSI]  = useState('60');
+  const [elevation,  setElevation]  = useState('0');
+  const [serviceLen, setServiceLen] = useState('50');
+  const [results,    setResults]    = useState(null);
 
   const fixtures = code === 'IPC' ? IPC_FIXTURES : UPC_FIXTURES;
 
-  useEffect(() => { compute(); }, [code, flushValve, counts, contLoad, streetPSI, elevation, serviceLen]);
+  useEffect(() => { compute(); }, [code, counts, contLoad, streetPSI, elevation, serviceLen]);
 
   function compute() {
-    // Total WSFU
     let totalWsfu = 0, coldWsfu = 0, hotWsfu = 0;
     fixtures.forEach(f => {
       const qty = parseInt(counts[f.key] || 0);
@@ -135,26 +128,24 @@ export default function WaterServiceSizer() {
 
     if (totalWsfu === 0 && !contLoad) { setResults(null); return; }
 
-    // Convert to GPM
-    const fixtureGPM = wsfu2gpm(totalWsfu, flushValve);
+    const hasFlushValve =
+      (parseInt(counts['wc_flushvalve'] || 0) +
+       parseInt(counts['urinal_fv']     || 0)) > 0;
+
+    const fixtureGPM = wsfu2gpm(totalWsfu, hasFlushValve);
     const contGPM    = parseFloat(contLoad) || 0;
     const totalGPM   = fixtureGPM + contGPM;
+    const coldGPM    = wsfu2gpm(coldWsfu, hasFlushValve) + contGPM;
+    const hotGPM     = wsfu2gpm(hotWsfu, hasFlushValve);
 
-    const coldGPM = wsfu2gpm(coldWsfu, flushValve) + contGPM;
-    const hotGPM  = wsfu2gpm(hotWsfu, flushValve);
-
-    // Size service pipe — velocity ≤ 8 FPS
-    const pipe = SERVICE_PIPES.find(p => calcVelocity(totalGPM, p.id) <= 8);
-
-    // Size meter — peak GPM ≤ maxPeak
+    const pipe  = SERVICE_PIPES.find(p => calcVelocity(totalGPM, p.id) <= 8);
     const meter = METERS.find(m => totalGPM <= m.maxPeak);
 
-    // Pressure budget
-    const len      = parseFloat(serviceLen) || 50;
-    const elev     = parseFloat(elevation)  || 0;
-    const elevLoss = elev * 0.433;
-    const pipePD   = pipe ? calcPD(totalGPM, pipe.id, len) : 0;
-    const meterPD  = meter ? Math.min(totalGPM / meter.maxPeak * 15, 15) : 0; // approx meter loss
+    const len       = parseFloat(serviceLen) || 50;
+    const elev      = parseFloat(elevation)  || 0;
+    const elevLoss  = elev * 0.433;
+    const pipePD    = pipe ? calcPD(totalGPM, pipe.id, len) : 0;
+    const meterPD   = meter ? Math.min(totalGPM / meter.maxPeak * 15, 15) : 0;
     const remaining = parseFloat(streetPSI) - elevLoss - pipePD - meterPD;
 
     setResults({
@@ -163,6 +154,7 @@ export default function WaterServiceSizer() {
       coldGPM, hotGPM,
       pipe, meter,
       elevLoss, pipePD, meterPD, remaining,
+      hasFlushValve,
     });
   }
 
@@ -184,39 +176,24 @@ export default function WaterServiceSizer() {
 
         <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-          {/* ── LEFT: Inputs ── */}
+          {/* ── LEFT ── */}
           <div className="w-full lg:w-1/2 space-y-4">
 
-            {/* Code & Flush Type */}
-            <div className="bg-gray-900 rounded-2xl p-6 space-y-5">
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Plumbing Code</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['IPC', 'UPC'].map(c => (
-                    <button key={c} onClick={() => { setCode(c); setCounts({}); }}
-                      className={`py-2 rounded-lg text-sm font-medium transition
-                        ${code === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                      {c === 'IPC' ? 'IPC — Most States' : 'UPC — West Coast'}
-                    </button>
-                  ))}
-                </div>
+            {/* Code */}
+            <div className="bg-gray-900 rounded-2xl p-6">
+              <label className="block text-sm text-gray-400 mb-2">Plumbing Code</label>
+              <div className="grid grid-cols-2 gap-2">
+                {['IPC', 'UPC'].map(c => (
+                  <button key={c} onClick={() => { setCode(c); setCounts({}); }}
+                    className={`py-2 rounded-lg text-sm font-medium transition
+                      ${code === c ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                    {c === 'IPC' ? 'IPC — Most States' : 'UPC — West Coast'}
+                  </button>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Flush Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[[true,'Flushometer Valve'],[false,'Flush Tank']].map(([v,l]) => (
-                    <button key={String(v)} onClick={() => setFlushValve(v)}
-                      className={`py-2 rounded-lg text-sm font-medium transition
-                        ${flushValve === v ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">Most commercial buildings use flushometer valves</p>
-              </div>
-
+              <p className="text-xs text-gray-600 mt-2">
+                {code === 'IPC' ? 'International Plumbing Code 2021' : 'Uniform Plumbing Code 2021'}
+              </p>
             </div>
 
             {/* Fixture Counts */}
@@ -249,10 +226,9 @@ export default function WaterServiceSizer() {
               </div>
             </div>
 
-            {/* Continuous Loads & Pressure */}
+            {/* Loads & Pressure */}
             <div className="bg-gray-900 rounded-2xl p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-200 mb-2">Additional Loads & Pressure</h2>
-
+              <h2 className="text-sm font-semibold text-gray-200">Additional Loads & Pressure</h2>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Continuous Load (GPM) — irrigation, cooling tower makeup, etc.</label>
                 <input type="number" value={contLoad}
@@ -260,7 +236,6 @@ export default function WaterServiceSizer() {
                   placeholder="0"
                   className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Street Pressure (PSI)</label>
@@ -285,7 +260,7 @@ export default function WaterServiceSizer() {
 
           </div>
 
-          {/* ── RIGHT: Results ── */}
+          {/* ── RIGHT ── */}
           <div className="w-full lg:w-1/2 space-y-4 lg:sticky lg:top-8">
 
             {results ? (
@@ -309,20 +284,27 @@ export default function WaterServiceSizer() {
                     </div>
                   </div>
 
+                  <div className="bg-gray-800 rounded-xl p-3">
+                    <p className="text-xs text-gray-500">
+                      {results.hasFlushValve ? 'Flushometer valve' : 'Flush tank'} conversion used
+                      — auto-detected from fixture selection · {code} 2021
+                    </p>
+                  </div>
+
                   {results.contGPM > 0 && (
                     <p className="text-xs text-gray-500">Includes {results.contGPM} GPM continuous load</p>
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-800 rounded-xl p-3">
-                      <p className="text-xs text-gray-400 mb-1">Cold Water Demand</p>
+                      <p className="text-xs text-gray-400 mb-1">Cold Water</p>
                       <p className="text-lg font-bold text-blue-400">{results.coldGPM.toFixed(1)} GPM</p>
-                      <p className="text-xs text-gray-600">{results.coldWsfu.toFixed(1)} WSFU cold</p>
+                      <p className="text-xs text-gray-600">{results.coldWsfu.toFixed(1)} WSFU</p>
                     </div>
                     <div className="bg-gray-800 rounded-xl p-3">
-                      <p className="text-xs text-gray-400 mb-1">Hot Water Demand</p>
+                      <p className="text-xs text-gray-400 mb-1">Hot Water</p>
                       <p className="text-lg font-bold text-blue-400">{results.hotGPM.toFixed(1)} GPM</p>
-                      <p className="text-xs text-gray-600">{results.hotWsfu.toFixed(1)} WSFU hot</p>
+                      <p className="text-xs text-gray-600">{results.hotWsfu.toFixed(1)} WSFU</p>
                     </div>
                   </div>
                 </div>
@@ -342,7 +324,7 @@ export default function WaterServiceSizer() {
                     </div>
                   ) : (
                     <div className="bg-yellow-900/40 border border-yellow-700 rounded-xl p-4">
-                      <p className="text-yellow-400 text-sm">⚠️ Flow exceeds 4" service pipe — consult a plumbing engineer</p>
+                      <p className="text-yellow-400 text-sm">⚠️ Flow exceeds 4" service — consult a plumbing engineer</p>
                     </div>
                   )}
 
@@ -357,7 +339,7 @@ export default function WaterServiceSizer() {
                     </div>
                   ) : (
                     <div className="bg-yellow-900/40 border border-yellow-700 rounded-xl p-4">
-                      <p className="text-yellow-400 text-sm">⚠️ Flow exceeds 6" meter capacity — consult water utility</p>
+                      <p className="text-yellow-400 text-sm">⚠️ Flow exceeds 6" meter — consult water utility</p>
                     </div>
                   )}
                 </div>
@@ -365,7 +347,6 @@ export default function WaterServiceSizer() {
                 {/* Pressure Budget */}
                 <div className={`bg-gray-900 rounded-2xl p-6 space-y-3 ${results.remaining < 35 ? 'border border-yellow-700' : ''}`}>
                   <h2 className="text-lg font-semibold text-gray-200">Pressure at Building Entry</h2>
-
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Street pressure</span>
@@ -391,9 +372,8 @@ export default function WaterServiceSizer() {
                       </span>
                     </div>
                   </div>
-
                   {results.remaining < 40 && results.remaining >= 25 && (
-                    <p className="text-xs text-yellow-400">⚠️ Pressure is adequate but tight — verify with water utility and consider pressure booster pump</p>
+                    <p className="text-xs text-yellow-400">⚠️ Pressure is adequate but tight — verify with water utility and consider a booster pump</p>
                   )}
                   {results.remaining < 25 && (
                     <p className="text-xs text-red-400">✗ Insufficient pressure — a booster pump will likely be required</p>
@@ -407,7 +387,7 @@ export default function WaterServiceSizer() {
               </div>
             )}
 
-            {/* Reference */}
+            {/* AWWA Meter Reference */}
             <div className="bg-gray-900 rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-gray-200 mb-4">AWWA M22 Meter Capacities</h2>
               <div className="grid grid-cols-3 gap-1 mb-2">
