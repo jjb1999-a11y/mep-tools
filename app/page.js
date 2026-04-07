@@ -18,20 +18,20 @@ const TOOLS = [
     standard: 'ASHRAE Fundamentals',
   },
   {
+    name: 'Domestic Water Pipe Sizer',
+    description: 'Size domestic cold and hot water piping using fixture units, velocity limits, and pressure budget per IPC / UPC.',
+    href: '/domestic-water-sizer',
+    icon: '💧',
+    available: true,
+    standard: 'IPC / UPC 2021',
+  },
+  {
     name: 'Duct Fitting Losses',
     description: 'Calculate pressure losses across duct fittings using ASHRAE fitting coefficients and equivalent lengths.',
     href: '/duct-fitting-losses',
     icon: '📐',
     available: false,
     standard: 'ASHRAE / SMACNA',
-  },
-  {
-    name: 'Domestic Water Pipe Sizer',
-    description: 'Size domestic cold and hot water piping using fixture units and velocity limits per IPC.',
-    href: '/domestic-pipe-sizer',
-    icon: '💧',
-    available: false,
-    standard: 'IPC / ASHRAE',
   },
   {
     name: 'Equipment Schedule Generator',
@@ -52,10 +52,10 @@ const TOOLS = [
 ];
 
 const TRUST_ITEMS = [
-  { label: 'ASHRAE Fundamentals', desc: 'Calculations based on ASHRAE Handbook standards' },
-  { label: 'SMACNA Standards',    desc: 'Duct construction per SMACNA guidelines' },
+  { label: 'ASHRAE Fundamentals',    desc: 'Calculations based on ASHRAE Handbook standards' },
+  { label: 'SMACNA Standards',       desc: 'Duct construction per SMACNA guidelines' },
   { label: 'Built by MEP Engineers', desc: 'Designed for real commercial design work' },
-  { label: 'Free to Use',         desc: 'No account required to get started' },
+  { label: 'Free to Use',            desc: 'No account required to get started' },
 ];
 
 export default function Home() {
@@ -134,8 +134,25 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Methodology Banner ── */}
+      <section className="border-t border-gray-800 bg-gray-900/30">
+        <div className="max-w-4xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div>
+            <h3 className="text-base font-semibold text-white mb-1">How are these calculations verified?</h3>
+            <p className="text-sm text-gray-400 max-w-lg">
+              Every tool cites its source standard — ASHRAE, SMACNA, IPC, or UPC.
+              Our methodology page documents the exact formulas, assumptions, and validation examples used in each tool.
+            </p>
+          </div>
+          <Link href="/methodology"
+            className="whitespace-nowrap bg-gray-800 hover:bg-gray-700 transition text-white text-sm font-medium px-6 py-3 rounded-xl border border-gray-700">
+            View Methodology →
+          </Link>
+        </div>
+      </section>
+
       {/* ── Footer ── */}
-      <footer className="border-t border-gray-800 mt-8">
+      <footer className="border-t border-gray-800">
         <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div>
             <p className="text-sm font-semibold text-blue-400">MEP Calcs</p>
