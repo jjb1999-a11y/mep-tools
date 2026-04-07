@@ -26,6 +26,14 @@ const TOOLS = [
     standard: 'IPC / UPC 2021',
   },
   {
+    name: 'Water Service Sizer',
+    description: 'Size building water service and meter from fixture counts per IPC / UPC and AWWA M22.',
+    href: '/water-service-sizer',
+    icon: '🏗️',
+    available: true,
+    standard: 'IPC / UPC / AWWA M22',
+  },
+  {
     name: 'Duct Fitting Losses',
     description: 'Calculate pressure losses across duct fittings using ASHRAE fitting coefficients and equivalent lengths.',
     href: '/duct-fitting-losses',
