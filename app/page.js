@@ -6,7 +6,6 @@ const TOOLS = [
     description: 'Size round, rectangular & flat oval ducts using the ASHRAE equal friction method. Includes velocity and pressure drop validation.',
     href: '/duct-sizer',
     icon: '💨',
-    available: true,
     standard: 'ASHRAE Fundamentals',
   },
   {
@@ -14,7 +13,6 @@ const TOOLS = [
     description: 'Size hydronic piping by flow rate with system type, glycol mix, and temperature corrections per ASHRAE Chapter 22.',
     href: '/pipe-sizer',
     icon: '🔧',
-    available: true,
     standard: 'ASHRAE Fundamentals',
   },
   {
@@ -22,7 +20,6 @@ const TOOLS = [
     description: 'Size domestic cold and hot water piping using fixture units, velocity limits, and pressure budget per IPC / UPC.',
     href: '/domestic-water-sizer',
     icon: '💧',
-    available: true,
     standard: 'IPC / UPC 2021',
   },
   {
@@ -30,32 +27,7 @@ const TOOLS = [
     description: 'Size building water service and meter from fixture counts per IPC / UPC and AWWA M22.',
     href: '/water-service-sizer',
     icon: '🏗️',
-    available: true,
     standard: 'IPC / UPC / AWWA M22',
-  },
-  {
-    name: 'Duct Fitting Losses',
-    description: 'Calculate pressure losses across duct fittings using ASHRAE fitting coefficients and equivalent lengths.',
-    href: '/duct-fitting-losses',
-    icon: '📐',
-    available: false,
-    standard: 'ASHRAE / SMACNA',
-  },
-  {
-    name: 'Equipment Schedule Generator',
-    description: 'Generate formatted mechanical equipment schedules from input specs for use on construction documents.',
-    href: '/equipment-schedule',
-    icon: '📋',
-    available: false,
-    standard: 'Industry Standard',
-  },
-  {
-    name: 'RFI & Submittal Tracker',
-    description: 'Track RFIs and submittals with status, ball-in-court, and aging alerts for active projects.',
-    href: '/rfi-tracker',
-    icon: '📁',
-    available: false,
-    standard: 'Project Management',
   },
 ];
 
@@ -79,14 +51,9 @@ export default function Home() {
           MEP calculations,<br />
           <span className="text-blue-400">done right.</span>
         </h1>
-        <p className="text-gray-400 text-lg max-w-xl mx-auto mb-8">
-          Fast, accurate engineering tools for duct sizing, pipe sizing, and more —
-          based on ASHRAE and SMACNA standards.
+        <p className="text-gray-400 text-lg max-w-xl mx-auto">
+          Fast, accurate engineering tools based on ASHRAE, SMACNA, IPC, and UPC standards.
         </p>
-        <a href="#tools"
-          className="inline-block bg-blue-600 hover:bg-blue-500 transition text-white font-semibold px-8 py-3 rounded-xl">
-          Start Calculating
-        </a>
       </section>
 
       {/* ── Trust Bar ── */}
@@ -102,7 +69,7 @@ export default function Home() {
       </section>
 
       {/* ── Tools ── */}
-      <section id="tools" className="max-w-4xl mx-auto px-4 py-16">
+      <section className="max-w-4xl mx-auto px-4 py-16">
         <div className="mb-10">
           <h2 className="text-2xl font-bold text-white">Engineering Tools</h2>
           <p className="text-gray-400 mt-1">All calculations cite their source standard so you know exactly where the math comes from.</p>
@@ -110,34 +77,16 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {TOOLS.map((tool) => (
-            <div key={tool.name}
-              className={`bg-gray-900 rounded-2xl p-6 border transition flex flex-col gap-3
-                ${tool.available
-                  ? 'border-gray-800 hover:border-blue-500'
-                  : 'border-gray-800 opacity-50'}`}>
-
-              {tool.available ? (
-                <Link href={tool.href} className="flex flex-col gap-3 h-full">
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl">{tool.icon}</span>
-                    <span className="text-xs text-blue-400 font-medium bg-blue-950 px-2 py-1 rounded-full">Live</span>
-                  </div>
-                  <h3 className="text-base font-semibold text-white">{tool.name}</h3>
-                  <p className="text-sm text-gray-400 flex-1">{tool.description}</p>
-                  <p className="text-xs text-gray-600">📖 {tool.standard}</p>
-                </Link>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl">{tool.icon}</span>
-                    <span className="text-xs text-gray-500 font-medium bg-gray-800 px-2 py-1 rounded-full">Coming Soon</span>
-                  </div>
-                  <h3 className="text-base font-semibold text-white">{tool.name}</h3>
-                  <p className="text-sm text-gray-400 flex-1">{tool.description}</p>
-                  <p className="text-xs text-gray-600">📖 {tool.standard}</p>
-                </>
-              )}
-            </div>
+            <Link key={tool.name} href={tool.href}
+              className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-blue-500 transition flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-2xl">{tool.icon}</span>
+                <span className="text-xs text-blue-400 font-medium bg-blue-950 px-2 py-1 rounded-full">Live</span>
+              </div>
+              <h3 className="text-base font-semibold text-white">{tool.name}</h3>
+              <p className="text-sm text-gray-400 flex-1">{tool.description}</p>
+              <p className="text-xs text-gray-600">📖 {tool.standard}</p>
+            </Link>
           ))}
         </div>
       </section>
