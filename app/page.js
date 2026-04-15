@@ -1,125 +1,210 @@
+'use client';
 import Link from 'next/link';
 
 const TOOLS = [
   {
     name: 'Duct Sizer',
-    description: 'Size round, rectangular & flat oval ducts using the ASHRAE equal friction method. Includes velocity and pressure drop validation.',
+    description: 'Round, rectangular & flat oval sizing using the ASHRAE equal friction method. Includes velocity and pressure drop validation.',
     href: '/duct-sizer',
-    icon: '💨',
-    standard: 'ASHRAE Fundamentals',
+    standard: 'ASHRAE Ch. 21',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="9" width="14" height="9" rx="1" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M3 9 L7 5 L21 5 L17 9" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+        <path d="M17 9 L21 5 L21 14 L17 18" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+        <path d="M7 13.5h5M10.5 11.5l2 2-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+      </svg>
+    ),
   },
   {
     name: 'Pipe Sizer',
-    description: 'Size hydronic piping by flow rate with system type, glycol mix, and temperature corrections per ASHRAE Chapter 22.',
+    description: 'Hydronic pipe sizing with system type, glycol correction, and temperature corrections per ASHRAE Chapter 22.',
     href: '/pipe-sizer',
-    icon: '🔧',
-    standard: 'ASHRAE Fundamentals',
+    standard: 'ASHRAE Ch. 22',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 30 30" fill="none">
+        <circle cx="15" cy="15" r="13" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M15 2 A13 13 0 0 0 15 28 A6.5 6.5 0 0 0 15 15 A6.5 6.5 0 0 1 15 2 Z" fill="currentColor"/>
+      </svg>
+    ),
+  },
+  {
+    name: 'Hydronic Head Loss',
+    description: 'Total Dynamic Head (TDH) for closed hydronic loops. Darcy-Weisbach pipe friction, K-factor fittings, velocity-interpolated LR ell data, and Crane TP-410 for large pipe sizes.',
+    href: '/hydronic-head-loss',
+    standard: 'ASHRAE Ch. 22 + Crane TP-410',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <circle cx="5" cy="12" r="3" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M8 12 h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        <path d="M13 9 h6 a2 2 0 0 1 0 6 h-6 a2 2 0 0 1 0-6 Z" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M13 12 h6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+        <path d="M5 9 v-3 M5 6 h14 M19 6 v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+      </svg>
+    ),
   },
   {
     name: 'Domestic Water Pipe Sizer',
     description: 'Size domestic cold and hot water piping using fixture units, velocity limits, and pressure budget per IPC / UPC.',
     href: '/domestic-water-sizer',
-    icon: '💧',
     standard: 'IPC / UPC 2021',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M3 10 h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M7 7.5 v2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.7"/>
+        <path d="M5.5 8.5 h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.7"/>
+        <path d="M11 10 Q13 10 13 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M13 12 v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M11.5 15 h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M12.3 16.5 v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/>
+        <path d="M13.7 16.5 v1.7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
+        <path d="M12.3 19 C12.3 19 11.5 20.3 11.5 21 a0.9 0.9 0 001.8 0 C13.3 20.3 12.3 19 12.3 19z" fill="currentColor"/>
+      </svg>
+    ),
   },
   {
     name: 'Water Service Sizer',
     description: 'Size building water service and meter from fixture counts per IPC / UPC and AWWA M22.',
     href: '/water-service-sizer',
-    icon: '🏗️',
     standard: 'IPC / UPC / AWWA M22',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M1 12 h3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <path d="M19.5 12 h3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="1" opacity="0.6"/>
+        <path d="M7.5 16 A6 6 0 1 1 16.5 16" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.6"/>
+        <path d="M12 7.2 v1.2M16.8 12 h-1.2M7.2 12 h1.2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
+        <path d="M12 12 L14.2 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+      </svg>
+    ),
   },
-];
-
-const TRUST_ITEMS = [
-  { label: 'ASHRAE Fundamentals',    desc: 'Calculations based on ASHRAE Handbook standards' },
-  { label: 'SMACNA Standards',       desc: 'Duct construction per SMACNA guidelines' },
-  { label: 'Built by MEP Engineers', desc: 'Designed for real commercial design work' },
-  { label: 'Free to Use',            desc: 'No account required to get started' },
 ];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
 
       {/* ── Hero ── */}
-      <section className="max-w-4xl mx-auto px-4 pt-24 pb-16 text-center">
-        <div className="inline-block bg-blue-950 border border-blue-800 text-blue-400 text-xs font-medium px-3 py-1 rounded-full mb-6">
-          Built for commercial MEP engineers
-        </div>
-        <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-          MEP calculations,<br />
-          <span className="text-blue-400">done right.</span>
+      <section style={{
+        borderBottom: '0.5px solid var(--border-primary)',
+        padding: '40px 24px 36px',
+        maxWidth: '860px',
+        margin: '0 auto',
+      }}>
+        <h1 style={{
+          fontSize: '26px',
+          fontWeight: 500,
+          letterSpacing: '-0.3px',
+          marginBottom: '8px',
+          lineHeight: 1.2,
+        }}>
+          <span style={{ color: 'var(--brand)' }}>Sizing tools</span>
+          <span style={{ color: 'var(--text-secondary)' }}> for MEP engineers</span>
         </h1>
-        <p className="text-gray-400 text-lg max-w-xl mx-auto">
-          Fast, accurate engineering tools based on ASHRAE, SMACNA, IPC, and UPC standards.
+        <p style={{
+          fontSize: '13px',
+          color: 'var(--text-tertiary)',
+          lineHeight: 1.65,
+          maxWidth: '440px',
+        }}>
+          Accurate duct and pipe calculations for commercial design work, grounded in published engineering standards.
         </p>
-      </section>
-
-      {/* ── Trust Bar ── */}
-      <section className="border-y border-gray-800 bg-gray-900/50">
-        <div className="max-w-4xl mx-auto px-4 py-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {TRUST_ITEMS.map((t, i) => (
-            <div key={i} className="text-center">
-              <p className="text-sm font-medium text-white mb-1">{t.label}</p>
-              <p className="text-xs text-gray-500">{t.desc}</p>
-            </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+          {['ASHRAE Fundamentals', 'SMACNA', 'IPC 2021', 'UPC 2021', 'AWWA M22', 'Crane TP-410'].map(code => (
+            <span key={code} style={{
+              fontSize: '10px',
+              fontWeight: 500,
+              color: 'var(--text-muted)',
+              background: 'var(--bg-tertiary)',
+              border: '0.5px solid var(--border-primary)',
+              padding: '3px 8px',
+              borderRadius: '4px',
+            }}>{code}</span>
           ))}
         </div>
       </section>
 
-      {/* ── Tools ── */}
-      <section className="max-w-4xl mx-auto px-4 py-16">
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-white">Engineering Tools</h2>
-          <p className="text-gray-400 mt-1">All calculations cite their source standard so you know exactly where the math comes from.</p>
-        </div>
+      {/* ── Tools Grid ── */}
+      <section style={{ maxWidth: '860px', margin: '0 auto', padding: '24px' }}>
+        <p style={{
+          fontSize: '11px',
+          fontWeight: 500,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          color: 'var(--text-muted)',
+          marginBottom: '14px',
+        }}>Tools</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {TOOLS.map((tool) => (
-            <Link key={tool.name} href={tool.href}
-              className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-blue-500 transition flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-2xl">{tool.icon}</span>
-                <span className="text-xs text-blue-400 font-medium bg-blue-950 px-2 py-1 rounded-full">Live</span>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '8px',
+        }}>
+          {TOOLS.map(tool => (
+            <Link key={tool.name} href={tool.href} style={{ textDecoration: 'none' }}>
+              <div
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '0.5px solid var(--border-primary)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s',
+                  height: '100%',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--brand)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-primary)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{
+                    width: '36px', height: '36px',
+                    background: 'var(--bg-accent)',
+                    borderRadius: '8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--brand)',
+                    flexShrink: 0,
+                  }}>
+                    {tool.icon}
+                  </div>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    color: 'var(--brand)',
+                    background: 'var(--bg-accent)',
+                    padding: '2px 7px',
+                    borderRadius: '10px',
+                  }}>Live</span>
+                </div>
+                <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  {tool.name}
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '10px' }}>
+                  {tool.description}
+                </p>
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  {tool.standard}
+                </p>
               </div>
-              <h3 className="text-base font-semibold text-white">{tool.name}</h3>
-              <p className="text-sm text-gray-400 flex-1">{tool.description}</p>
-              <p className="text-xs text-gray-600">📖 {tool.standard}</p>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* ── Methodology Banner ── */}
-      <section className="border-t border-gray-800 bg-gray-900/30">
-        <div className="max-w-4xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div>
-            <h3 className="text-base font-semibold text-white mb-1">How are these calculations verified?</h3>
-            <p className="text-sm text-gray-400 max-w-lg">
-              Every tool cites its source standard — ASHRAE, SMACNA, IPC, or UPC.
-              Our methodology page documents the exact formulas, assumptions, and validation examples used in each tool.
-            </p>
-          </div>
-          <Link href="/methodology"
-            className="whitespace-nowrap bg-gray-800 hover:bg-gray-700 transition text-white text-sm font-medium px-6 py-3 rounded-xl border border-gray-700">
-            View Methodology →
-          </Link>
-        </div>
-      </section>
-
       {/* ── Footer ── */}
-      <footer className="border-t border-gray-800">
-        <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div>
-            <p className="text-sm font-semibold text-blue-400">MEP Calcs</p>
-            <p className="text-xs text-gray-600 mt-1">Professional MEP engineering tools</p>
-          </div>
-          <div className="flex gap-6 text-xs text-gray-500">
-            <Link href="/methodology" className="hover:text-gray-300 transition">Methodology</Link>
-            <a href="mailto:hello@mepcalcs.com" className="hover:text-gray-300 transition">Contact</a>
-          </div>
-          <p className="text-xs text-gray-600">© {new Date().getFullYear()} MEP Calcs</p>
+      <footer style={{
+        borderTop: '0.5px solid var(--border-primary)',
+        maxWidth: '860px',
+        margin: '0 auto',
+        padding: '20px 24px',
+      }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.65, marginBottom: '12px', maxWidth: '400px' }}>
+          Accurate sizing tools for duct and pipe systems, built for commercial MEP engineers. All calculations based on ASHRAE Fundamentals, SMACNA, IPC 2021, UPC 2021, AWWA M22, and Crane TP-410.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>© {new Date().getFullYear()} MEP Calcs</span>
+          <a href="mailto:hello@mepcalcs.com" style={{ fontSize: '11px', color: 'var(--text-muted)', textDecoration: 'none' }}>hello@mepcalcs.com</a>
         </div>
       </footer>
 
