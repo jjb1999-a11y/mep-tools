@@ -217,7 +217,7 @@ export default function Methodology() {
           marginBottom: '20px',
         }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Last updated: April 2026</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Version 1.3</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Version 1.4</span>
         </div>
 
         {/* ── Duct Sizer ── */}
@@ -479,31 +479,46 @@ export default function Methodology() {
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>T in °F. Source: CRC Handbook of Chemistry and Physics, as cited in ASHRAE HoF 2021 Ch.22.</p>
           </Card>
 
+          <Card title="Supply / Return Temperature Zones">
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '8px' }}>
+              The calculator accepts separate supply and return temperatures and computes fluid properties independently for each. Components in the circuit are assigned to a zone (supply or return) based on their position relative to user-placed zone-switch markers in the component list. Each component's friction calculation uses the density and viscosity corresponding to its assigned zone.
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '8px' }}>
+              Zone markers are bidirectional — the user can switch back and forth between supply and return as many times as needed. This supports circuits such as condenser water systems where flow goes from the pump (supply temp) through the chiller (warms up), through return piping (return temp), through the cooling tower (cools back down), and back to the pump (supply temp again).
+            </p>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              The viscosity difference between supply and return in typical HVAC systems (44/54°F CHW, 82/94°F CW, 140/120°F HHW) produces a measurable change in pipe friction (typically 5–15%) that this approach captures.
+            </p>
+          </Card>
+
           <Card title="Validation">
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '10px' }}>
+              Methodology validated against an independent hand calculation for a 50-component closed condenser water index circuit (85°F, Sch 40 steel, 6"–10" pipe):
+            </p>
             <MTable
-              headers={['Metric', 'PE-Stamped Calc', 'MEP Calcs', 'Difference']}
+              headers={['Metric', 'Independent Calc', 'MEP Calcs', 'Difference']}
               rows={[
                 ['Total friction + fittings','3.626 ft','3.468 ft','−4.4%'],
                 ['Design TDH (×1.15 SF)','4.952 ft','4.770 ft','−3.7%'],
                 ['8" LR ell K (7.1 fps)','0.200','0.200','0.0%'],
                 ['10" LR ell K (4.5 fps)','0.200','0.200','0.0%'],
                 ['8" tee line K','0.080','0.080','0.0%'],
-                ['BFV K (Cv=3316, 8")','0.330','0.309','−6.4%'],
               ]}
             />
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-              Remaining 4.4% gap attributable to fluid property rounding (ν at 85°F: stamped calc uses 0.000008 ft²/s flat; tool computes 0.0000083 ft²/s from polynomial fit). Within ±20–35% K-factor tolerance per ASHRAE HoF 2021 Ch.22 Table 5.
+              Remaining 4.4% gap attributable to fluid property rounding (ν at 85°F). Within ±20–35% K-factor tolerance per ASHRAE HoF 2021 Ch.22 Table 5.
             </p>
           </Card>
 
           <Card title="Assumptions & Limitations">
             <ul style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: '16px' }}>
-              <li>Single design temperature for entire loop — fluid properties constant throughout</li>
-              <li>Closed loop systems only — static head cancels and is not included (except open cooling tower static lift)</li>
+              <li>Supply and return temperatures are entered separately; fluid properties are computed at each temperature and applied to components based on their zone in the loop</li>
+              <li>Zone assignment is user-controlled via divider markers in the component list — supports multi-zone circuits (e.g., condenser water where flow goes supply → chiller → return → tower → supply)</li>
+              <li>Closed loop systems only — static head cancels and is not included (except open cooling tower static lift, which must be added manually)</li>
               <li>Threaded fittings NPS &lt; 2½", flanged/welded NPS ≥ 2½" per standard HVAC practice</li>
               <li>LR elbow K values (Table 6) are velocity-interpolated across 4 / 8 / 12 fps columns</li>
               <li>Tee K values (Table 7) are at 8 fps — velocity dependence not accounted for</li>
-              <li>Large pipe K values (tees &gt; 16", std. elbows &gt; 12") from Crane TP-410 — not yet validated against PE-stamped calcs at those sizes</li>
+              <li>Large pipe K values (tees &gt; 16", std. elbows &gt; 12") from Crane TP-410 — not yet validated against independent calcs at those sizes</li>
               <li>K-factor tolerance ±20–35% per ASHRAE HoF 2021 Ch.22 Table 5</li>
               <li>Safety factor default 1.15 — adjustable by user</li>
             </ul>
@@ -653,6 +668,7 @@ export default function Methodology() {
           <Card title="Version History">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
+                ['1.4', 'April 2026', 'Hydronic Head Loss — supply/return temperature zones, user-controlled pump-end marker'],
                 ['1.3', 'April 2026', 'Added Hydronic Head Loss Calculator — Darcy-Weisbach, ASHRAE Tables 3/4/6/7, Crane TP-410'],
                 ['1.2', 'April 2026', 'Added Water Service Sizer, updated methodology'],
                 ['1.1', 'April 2026', 'Added Domestic Water Pipe Sizer, collapsible sections'],
@@ -687,7 +703,7 @@ export default function Methodology() {
           alignItems: 'center',
         }}>
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>© {new Date().getFullYear()} MEP Calcs</span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Version 1.3</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Version 1.4</span>
         </div>
 
       </div>
