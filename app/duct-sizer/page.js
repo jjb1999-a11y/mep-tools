@@ -227,28 +227,28 @@ export default function Home() {
                 </div>
               )}
 
-              {tab === 'oval' && (
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Oval Constraint (optional)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Max Minor Axis (in)</label>
-                      <input type="number" value={ovalMinorConstraint}
-                        onChange={e => { setOvalMinorConstraint(e.target.value); if (e.target.value) setOvalMajorConstraint(''); }}
-                        placeholder="e.g. 12"
-                        className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Max Major Axis (in)</label>
-                      <input type="number" value={ovalMajorConstraint}
-                        onChange={e => { setOvalMajorConstraint(e.target.value); if (e.target.value) setOvalMinorConstraint(''); }}
-                        placeholder="e.g. 36"
-                        className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1">Set one — the other calculates automatically</p>
-                </div>
-              )}
+    {tab === 'oval' && (
+  <div>
+    <label className="block text-sm text-gray-400 mb-2">Oval Constraint (optional)</label>
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Max Major Axis (in)</label>
+        <input type="number" value={ovalMajorConstraint}
+          onChange={e => { setOvalMajorConstraint(e.target.value); if (e.target.value) setOvalMinorConstraint(''); }}
+          placeholder="e.g. 36"
+          className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Max Minor Axis (in)</label>
+        <input type="number" value={ovalMinorConstraint}
+          onChange={e => { setOvalMinorConstraint(e.target.value); if (e.target.value) setOvalMajorConstraint(''); }}
+          placeholder="e.g. 12"
+          className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+      </div>
+    </div>
+    <p className="text-xs text-gray-600 mt-1">Set one — the other calculates automatically</p>
+  </div>
+)}
 
             </div>
 
