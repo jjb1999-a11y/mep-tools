@@ -96,14 +96,12 @@ const K_FLANGED = {
   10:   {'90std':0.25,'90lr':0.14,'45':0.16,'return':0.25,'teeLine':0.09,'teeBranch':0.53,'globe':5.7,'gate':0.06,'angle':2.1,'swingCheck':2.0},
   12:   {'90std':0.24,'90lr':0.13,'45':0.16,'return':0.24,'teeLine':0.08,'teeBranch':0.50,'globe':5.7,'gate':0.05,'angle':2.1,'swingCheck':2.0},
 };
-// Table 6 — Welded LR ells [nom: [K_4fps, K_8fps, K_12fps]]
 const K_WELD_LR_VEL = {
   4:  [0.37,0.34,0.33], 6:  [0.26,0.24,0.24],
   8:  [0.22,0.20,0.19], 10: [0.21,0.17,0.16],
   12: [0.16,0.17,0.17], 16: [0.12,0.12,0.12],
   20: [0.12,0.12,0.10], 24: [0.098,0.089,0.089],
 };
-// Table 7 — Welded tees at 8fps
 const K_WELD_TEE_LINE   = {4:0.06,6:0.12,8:0.08,10:0.06,12:0.091,16:0.028};
 const K_WELD_TEE_BRANCH = {4:0.57,6:0.56,8:0.53,10:0.52,12:0.63, 16:0.55 };
 
@@ -113,7 +111,6 @@ const REDUCER_DATA = [
   [6,8,0.15,0.12,0.11],[8,10,0.11,0.09,0.08],[10,12,0.11,0.11,0.11],
   [12,16,0.076,0.076,0.073],[16,20,0.021,0.021,0.022],
 ];
-
 function getReducerK(upNom,downNom,vFps) {
   const row=REDUCER_DATA.find(r=>r[0]===upNom&&r[1]===downNom);
   if (!row) return 0.14;
@@ -135,12 +132,10 @@ function nearest(obj,nominal) {
   return obj[Object.keys(obj).map(Number).reduce((p,c)=>Math.abs(c-nominal)<Math.abs(p-nominal)?c:p)];
 }
 
-// Velocity-interpolated LR ell K from Table 6
 function getLRK(nominal,vFps) {
   const keys=Object.keys(K_WELD_LR_VEL).map(Number).sort((a,b)=>a-b);
   const nearNom=keys.reduce((p,c)=>Math.abs(c-nominal)<Math.abs(p-nominal)?c:p);
   const cols=K_WELD_LR_VEL[nearNom];
-  // Interpolate between velocity columns (4,8,12 fps)
   if (vFps<=4)  return cols[0];
   if (vFps<=8)  return cols[0]+(cols[1]-cols[0])*((vFps-4)/4);
   if (vFps<=12) return cols[1]+(cols[2]-cols[1])*((vFps-8)/4);
@@ -151,7 +146,7 @@ function getK(type,nominal,vFps=8) {
   if (type==='ball')      return {K:0.05,src:'Industry std'};
   if (type==='butterfly') return {K:0.30,src:'Generic (override w/ mfr Cv)'};
   const fT=getFT(nominal);
-  const threaded=nominal<2.5, largeWeld=nominal>=4&&!threaded;
+  const threaded=nominal<2.5;
 
   if (type==='90lr') {
     if (nominal<=24) return {K:getLRK(nominal,vFps),src:'ASHRAE HoF 2021 Table 6'};
@@ -234,11 +229,11 @@ const CATEGORIES = [
 const ALL_COMPS = CATEGORIES.flatMap(c=>c.items);
 
 const SYSTEM_DEFAULTS = {
-  chw:  {label:'Chilled Water',       temp:44 },
-  cw:   {label:'Condenser Water',     temp:85 },
-  hhw:  {label:'Heating Hot Water',   temp:140},
-  hthw: {label:'High Temp Hot Water', temp:180},
-  other:{label:'Other / Custom',      temp:60 },
+  chw:  {label:'Chilled Water',       supply:44,  return:54 },
+  cw:   {label:'Condenser Water',     supply:82,  return:94 },
+  hhw:  {label:'Heating Hot Water',   supply:140, return:120},
+  hthw: {label:'High Temp Hot Water', supply:180, return:160},
+  other:{label:'Other / Custom',      supply:60,  return:60 },
 };
 
 // ── Abbreviations ─────────────────────────────────────────────────────────────
@@ -268,11 +263,25 @@ const LEGEND_LABELS = {
   heat_exchanger:'Heat Exchanger',ahu_coil:'AHU / FCU Coil',custom:'Custom Component',
 };
 
+// ── Determine zone temp for each component ────────────────────────────────────
+// Walks through components and determines which zone (supply or return) each is in
+function assignZones(components) {
+  let currentZone = 'supply';
+  return components.map(c => {
+    if (c.type === '__zone_switch__') {
+      currentZone = c.switchTo;
+      return { ...c, zone: currentZone };
+    }
+    return { ...c, zone: currentZone };
+  });
+}
+
 // ── Circuit Diagram ───────────────────────────────────────────────────────────
 function CircuitDiagram({ components }) {
-  if (!components.length) return null;
+  const realComps = components.filter(c => c.type !== '__zone_switch__');
+  if (!realComps.length) return null;
   const ROW_MAX=14, CW=60, CH=80, PAD_X=50, PAD_Y=30, GAP_Y=40;
-  const rows=Math.ceil(components.length/ROW_MAX);
+  const rows=Math.ceil(realComps.length/ROW_MAX);
   const W=PAD_X*2+ROW_MAX*CW;
   const H=PAD_Y*2+rows*CH+(rows-1)*GAP_Y;
 
@@ -306,20 +315,18 @@ function CircuitDiagram({ components }) {
     }
   };
 
-  // Row lines
   const rowLines=Array.from({length:rows}).map((_,r)=>{
-    const s=r*ROW_MAX,e=Math.min((r+1)*ROW_MAX-1,components.length-1);
+    const s=r*ROW_MAX,e=Math.min((r+1)*ROW_MAX-1,realComps.length-1);
     if (s>e) return null;
     const p1=posOf(s),p2=posOf(e);
     return <line key={`rl${r}`} x1={Math.min(p1.x,p2.x)-CW/2+10} y1={p1.y} x2={Math.max(p1.x,p2.x)+CW/2-10} y2={p1.y} stroke="var(--border-secondary)" strokeWidth="1.5"/>;
   });
 
-  // Zigzag semicircle connectors
   const zigzags=[];
   for (let r=0;r<rows-1;r++){
-    const lastIdx=Math.min((r+1)*ROW_MAX-1,components.length-1);
+    const lastIdx=Math.min((r+1)*ROW_MAX-1,realComps.length-1);
     const nextIdx=(r+1)*ROW_MAX;
-    if (nextIdx>=components.length) break;
+    if (nextIdx>=realComps.length) break;
     const p1=posOf(lastIdx),p2=posOf(nextIdx);
     const rev=r%2===1;
     const sideX=rev?p1.x-16:p1.x+16;
@@ -331,32 +338,31 @@ function CircuitDiagram({ components }) {
     );
   }
 
-  const usedTypes=[...new Set(components.map(c=>c.type))];
+  const usedTypes=[...new Set(realComps.map(c=>c.type))];
 
   return (
     <div>
       <div style={{overflowX:'auto',overflowY:'auto',maxHeight:'320px',border:'0.5px solid var(--border-primary)',borderRadius:'8px',padding:'8px',background:'var(--bg-secondary)'}}>
         <svg width={W} height={H} style={{display:'block'}}>
           {rowLines}{zigzags}
-          {/* Pump */}
           <circle cx={PAD_X-20} cy={posOf(0).y} r={14} fill="var(--bg-accent)" stroke="var(--brand)" strokeWidth="1.8"/>
           <text x={PAD_X-20} y={posOf(0).y+1} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="bold" fill="var(--brand)">P</text>
           <line x1={PAD_X-6} y1={posOf(0).y} x2={PAD_X+CW/2-10} y2={posOf(0).y} stroke="var(--border-secondary)" strokeWidth="1.5"/>
-          {components.map((comp,idx)=>{
+          {realComps.map((comp,idx)=>{
             const {x,y}=posOf(idx);
             const abbr=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
+            const zoneColor = comp.zone==='return' ? '#f97316' : 'var(--brand)';
             return (
               <g key={comp.id}>
-                <circle cx={x} cy={y} r={16} fill="var(--bg-card)" stroke="var(--border-primary)" strokeWidth="0.75"/>
+                <circle cx={x} cy={y} r={16} fill="var(--bg-card)" stroke={comp.zone==='return'?'#f97316':'var(--border-primary)'} strokeWidth={comp.zone==='return'?'1.2':'0.75'}/>
                 {iconOf(comp.type,x,y)}
                 <text x={x} y={y-22} textAnchor="middle" fontSize="7.5" fill="var(--text-tertiary)">{idx+1}</text>
-                <text x={x} y={y+26} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="500">{abbr}</text>
+                <text x={x} y={y+26} textAnchor="middle" fontSize="7" fill={comp.zone==='return'?'#f97316':'var(--text-muted)'} fontWeight="500">{abbr}</text>
               </g>
             );
           })}
         </svg>
       </div>
-      {/* Dynamic Legend */}
       <div style={{marginTop:'10px',padding:'10px 12px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)'}}>
         <div style={{fontSize:'10px',fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:'7px'}}>Legend</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:'6px 20px'}}>
@@ -366,6 +372,9 @@ function CircuitDiagram({ components }) {
               {' — '}{LEGEND_LABELS[type]||type}
             </span>
           ))}
+          <span style={{fontSize:'11px',color:'#f97316',whiteSpace:'nowrap',marginLeft:'12px'}}>
+            <span style={{fontWeight:600}}>●</span> Return side (orange)
+          </span>
         </div>
       </div>
     </div>
@@ -374,9 +383,10 @@ function CircuitDiagram({ components }) {
 
 // ── Diagram SVG for report ────────────────────────────────────────────────────
 function generateDiagramSVG(components) {
-  if (!components.length) return '';
+  const realComps = components.filter(c => c.type !== '__zone_switch__');
+  if (!realComps.length) return '';
   const ROW_MAX=14,CW=52,CH=65,PAD_X=45,PAD_Y=25,GAP_Y=35;
-  const rows=Math.ceil(components.length/ROW_MAX);
+  const rows=Math.ceil(realComps.length/ROW_MAX);
   const W=PAD_X*2+ROW_MAX*CW;
   const H=PAD_Y*2+rows*CH+(rows-1)*GAP_Y;
   const posOf=(idx)=>{
@@ -385,16 +395,16 @@ function generateDiagramSVG(components) {
   };
   let rowLines='';
   for(let r=0;r<rows;r++){
-    const s=r*ROW_MAX,e=Math.min((r+1)*ROW_MAX-1,components.length-1);
+    const s=r*ROW_MAX,e=Math.min((r+1)*ROW_MAX-1,realComps.length-1);
     if(s>e) continue;
     const p1=posOf(s),p2=posOf(e);
     rowLines+=`<line x1="${Math.min(p1.x,p2.x)-CW/2+8}" y1="${p1.y}" x2="${Math.max(p1.x,p2.x)+CW/2-8}" y2="${p1.y}" stroke="#cbd5e1" stroke-width="1.5"/>`;
   }
   let zz='';
   for(let r=0;r<rows-1;r++){
-    const lastIdx=Math.min((r+1)*ROW_MAX-1,components.length-1);
+    const lastIdx=Math.min((r+1)*ROW_MAX-1,realComps.length-1);
     const nextIdx=(r+1)*ROW_MAX;
-    if(nextIdx>=components.length) break;
+    if(nextIdx>=realComps.length) break;
     const p1=posOf(lastIdx),p2=posOf(nextIdx);
     const rev=r%2===1;
     const sideX=rev?p1.x-16:p1.x+16;
@@ -404,29 +414,32 @@ function generateDiagramSVG(components) {
   const p0=posOf(0);
   let pump=`<circle cx="${PAD_X-18}" cy="${p0.y}" r="12" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/><text x="${PAD_X-18}" y="${p0.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><line x1="${PAD_X-6}" y1="${p0.y}" x2="${PAD_X+CW/2-8}" y2="${p0.y}" stroke="#cbd5e1" stroke-width="1.5"/>`;
   let comps='';
-  components.forEach((comp,idx)=>{
+  realComps.forEach((comp,idx)=>{
     const {x,y}=posOf(idx);
     const ab=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
-    comps+=`<circle cx="${x}" cy="${y}" r="14" fill="white" stroke="#e2e8f0" stroke-width="0.75"/><text x="${x}" y="${y-18}" text-anchor="middle" font-size="7" fill="#94a3b8">${idx+1}</text><text x="${x}" y="${y+22}" text-anchor="middle" font-size="7" fill="#475569" font-weight="500">${ab}</text>`;
+    const strokeColor = comp.zone==='return' ? '#f97316' : '#e2e8f0';
+    const textColor = comp.zone==='return' ? '#f97316' : '#475569';
+    comps+=`<circle cx="${x}" cy="${y}" r="14" fill="white" stroke="${strokeColor}" stroke-width="${comp.zone==='return'?1.2:0.75}"/><text x="${x}" y="${y-18}" text-anchor="middle" font-size="7" fill="#94a3b8">${idx+1}</text><text x="${x}" y="${y+22}" text-anchor="middle" font-size="7" fill="${textColor}" font-weight="500">${ab}</text>`;
   });
-  const usedTypes=[...new Set(components.map(c=>c.type))];
+  const usedTypes=[...new Set(realComps.map(c=>c.type))];
   const legendItems=usedTypes.map(t=>`<tspan>${ABBREV[t]||t}: ${LEGEND_LABELS[t]||t}</tspan>`).join('  ');
   return `<svg width="${W}" height="${H+30}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${rowLines}${zz}${pump}${comps}<text x="${PAD_X}" y="${H+18}" font-size="7.5" fill="#64748b">${legendItems}</text></svg>`;
 }
 
 // ── Print Report ──────────────────────────────────────────────────────────────
-function printReport({projectName,projectNum,engineer,systemType,designTemp,safetyFactor,results,totalHead,designHead,pipeLoss,fitLoss,equipLoss,fluid,includeDiagram,components}) {
+function printReport({projectName,projectNum,engineer,systemType,supplyTemp,returnTemp,safetyFactor,results,totalHead,designHead,pipeLoss,fitLoss,equipLoss,fluidSupply,fluidReturn,includeDiagram,components}) {
   const sys=SYSTEM_DEFAULTS[systemType]?.label||systemType;
-  const rows=results.map((r,i)=>{
+  const rows=results.filter(r=>r.type!=='__zone_switch__').map((r,i)=>{
     const isEquip=r.mode==='manual'||r.mode==='static';
     const pipeCol=isEquip?'—':r.mode==='reducer'?`${r.pipe}→${r.pipeDown}`:r.pipe;
     const gpmCol=isEquip?'—':r.gpm;
     const velCol=r.vFps?`${r.vFps.toFixed(2)} fps`:'—';
     const fCol=r.f?r.f.toFixed(4):'—';
     const KCol=r.K!=null?r.K.toFixed(3):'—';
+    const zoneBadge = r.zone==='return' ? '<span style="font-size:7px;color:#f97316;font-weight:600;margin-left:3px">[R]</span>' : '';
     return `<tr style="border-bottom:0.5px solid #e2e8f0">
       <td style="padding:4px 5px;font-size:9px;color:#64748b;text-align:center">${i+1}</td>
-      <td style="padding:4px 5px;font-size:9px;font-weight:500">${r.label}</td>
+      <td style="padding:4px 5px;font-size:9px;font-weight:500">${r.label}${zoneBadge}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${gpmCol}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${pipeCol}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${velCol}</td>
@@ -436,13 +449,15 @@ function printReport({projectName,projectNum,engineer,systemType,designTemp,safe
     </tr>`;
   }).join('');
 
-  const diagramSection=includeDiagram&&components.length>0?`
+  const diagramSection=includeDiagram&&components.filter(c=>c.type!=='__zone_switch__').length>0?`
     <div class="sec">
       <div class="sec-hdr">Circuit Diagram</div>
       <div style="border:0.5px solid #e2e8f0;border-radius:5px;padding:10px;background:#f8fafc;overflow:hidden">
         ${generateDiagramSVG(components)}
       </div>
     </div>`:'';
+
+  const tempDisplay = supplyTemp===returnTemp ? `${supplyTemp}°F` : `${supplyTemp}°F supply / ${returnTemp}°F return`;
 
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <title>Head Loss — ${projectName||'Untitled'}</title>
@@ -495,11 +510,12 @@ th.c{text-align:center} th.r{text-align:right}
   <div class="sec-hdr">System Parameters</div>
   <div class="info-grid">
     <div class="info-item"><label>System Type</label><div class="v">${sys}</div></div>
-    <div class="info-item"><label>Design Temperature</label><div class="v">${designTemp}°F</div></div>
+    <div class="info-item"><label>Supply / Return Temp</label><div class="v">${tempDisplay}</div></div>
     <div class="info-item"><label>Safety Factor</label><div class="v">${safetyFactor}</div></div>
   </div>
   <div style="margin-top:8px;font-size:8.5px;color:#475569;line-height:1.9">
-    ρ = ${fluid.density.toFixed(2)} lb/ft³ &nbsp;|&nbsp; ν = ${fluid.nu.toExponential(2)} ft²/s &nbsp;|&nbsp;
+    Supply side: ρ=${fluidSupply.density.toFixed(2)} lb/ft³, ν=${fluidSupply.nu.toExponential(2)} ft²/s &nbsp;|&nbsp;
+    Return side: ρ=${fluidReturn.density.toFixed(2)} lb/ft³, ν=${fluidReturn.nu.toExponential(2)} ft²/s<br/>
     V = GPM × 0.002228 / A(ft²) &nbsp;|&nbsp; Δh<sub>pipe</sub> = f·(L/D)·(V²/2g) &nbsp;|&nbsp;
     Δh<sub>fitting</sub> = K·(V²/2g) &nbsp;|&nbsp; f = Colebrook-White (ASHRAE HoF 2021 Ch.22 Eq. 4)
   </div>
@@ -522,6 +538,7 @@ ${diagramSection}
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>
+  <div style="font-size:8px;color:#94a3b8;margin-top:4px">[R] = Component in return-temperature zone</div>
 </div>
 
 <div class="sum-box">
@@ -546,6 +563,7 @@ ${diagramSection}
   · Table 16: Steel Pipe Dimensions — ASME Standard B36.10M, Schedule 40 (as cited in ASHRAE HoF 2021 Ch.22)<br/>
   · Table 17: Copper Tube Dimensions — ASTM Standard B88, Type L (as cited in ASHRAE HoF 2021 Ch.22)<br/>
   · For pipe sizes exceeding ASHRAE table limits (tees &gt;16", std. elbows &gt;12"): Crane Co., Flow of Fluids Through Valves, Fittings and Pipe, Technical Paper No. 410 (1988), Appendix A, Table A-26 through A-29<br/>
+  Supply/return temperature zones: fluid properties computed separately at each temp; components tagged [R] use return-side properties.
   Assumptions: Threaded NPS &lt; 2½"; flanged/welded NPS ≥ 2½". Reducer K referenced to upstream pipe velocity (ASHRAE Table 6).
   Ball valve K=0.05 (turbulent, fully open). Butterfly valve K=0.30 generic — override with K=894·d⁴/Cv² (ASHRAE HoF 2021 Ch.22 Eq. 8).
   K-factor tolerance ±20–35% per ASHRAE HoF 2021 Ch.22 Table 5. Static lift for open loop systems only.
@@ -570,7 +588,8 @@ export default function HydronicHeadLoss() {
   const [projectNum,   setProjectNum]   = useState('');
   const [engineer,     setEngineer]     = useState('');
   const [systemType,   setSystemType]   = useState('cw');
-  const [designTemp,   setDesignTemp]   = useState(85);
+  const [supplyTemp,   setSupplyTemp]   = useState(82);
+  const [returnTemp,   setReturnTemp]   = useState(94);
   const [safetyFactor, setSafetyFactor] = useState(1.15);
   const [components,   setComponents]   = useState([]);
   const [currentGpm,   setCurrentGpm]   = useState('');
@@ -590,17 +609,21 @@ export default function HydronicHeadLoss() {
   const tableScrollRef  = useRef(null);
   const diagScrollRef   = useRef(null);
 
-  const fluid       = waterProps(designTemp);
+  const fluidSupply = waterProps(supplyTemp);
+  const fluidReturn = waterProps(returnTemp);
   const catItems    = CATEGORIES.find(c=>c.id===activeCat)?.items||[];
   const selectedDef = ALL_COMPS.find(c=>c.type===addType)||ALL_COMPS[0];
 
-  // Auto-scroll table and diagram to bottom when components change
   useEffect(()=>{
     if (tableScrollRef.current) tableScrollRef.current.scrollTop=tableScrollRef.current.scrollHeight;
     if (diagScrollRef.current)  diagScrollRef.current.scrollTop=diagScrollRef.current.scrollHeight;
   },[components]);
 
-  function handleSystemChange(val){setSystemType(val);setDesignTemp(SYSTEM_DEFAULTS[val].temp);}
+  function handleSystemChange(val){
+    setSystemType(val);
+    setSupplyTemp(SYSTEM_DEFAULTS[val].supply);
+    setReturnTemp(SYSTEM_DEFAULTS[val].return);
+  }
   function handleCatChange(catId){
     setActiveCat(catId);
     const first=CATEGORIES.find(c=>c.id===catId)?.items[0];
@@ -608,7 +631,10 @@ export default function HydronicHeadLoss() {
   }
 
   // ── Calc ──────────────────────────────────────────────────────────────────
-  function calcComp(comp) {
+  function calcComp(comp, fluid) {
+    if (comp.type === '__zone_switch__') {
+      return { hLoss:0, vFps:0, Re:0, f:0, K:null, detail:`─── Switch to ${comp.switchTo} temperature ───` };
+    }
     if (comp.mode==='static') return {hLoss:parseFloat(comp.lift)||0,vFps:0,Re:0,f:0,K:null,detail:'Static lift — open loop only'};
     if (comp.mode==='manual') return {hLoss:parseFloat(comp.manual)||0,vFps:0,Re:0,f:0,K:null,detail:'Manufacturer / manual entry'};
     const pipe=PIPES.find(p=>p.label===comp.pipe)||PIPES[15];
@@ -630,7 +656,6 @@ export default function HydronicHeadLoss() {
       return {hLoss:K*qty*(vFps*vFps)/(2*32.174),vFps,Re,f,K,
         detail:`K=${K.toFixed(3)} · ${pipe.label}→${pd.label} · ASHRAE Table 6${qty>1?` × ${qty}`:''}`};
     }
-    // Use K override if provided, otherwise table lookup
     let K,src;
     if (comp.kOverride&&parseFloat(comp.kOverride)) {
       K=parseFloat(comp.kOverride); src='user override';
@@ -644,12 +669,19 @@ export default function HydronicHeadLoss() {
       detail:`K=${K.toFixed(3)}${qty>1?` × ${qty}`:''} · ${src} · V=${vFps.toFixed(2)} fps${comp.kOverride?' ⚠':''}`};
   }
 
-  const results    = components.map(c=>({...c,...calcComp(c)}));
-  const totalHead  = results.reduce((s,r)=>s+(r.hLoss||0),0);
+  // Assign zones and calculate
+  const zonedComponents = assignZones(components);
+  const results = zonedComponents.map(c => ({
+    ...c,
+    ...calcComp(c, c.zone==='return' ? fluidReturn : fluidSupply)
+  }));
+
+  const realResults = results.filter(r => r.type !== '__zone_switch__');
+  const totalHead  = realResults.reduce((s,r)=>s+(r.hLoss||0),0);
   const designHead = totalHead*safetyFactor;
-  const pipeLoss   = results.filter(r=>r.type==='pipe').reduce((s,r)=>s+(r.hLoss||0),0);
-  const fitLoss    = results.filter(r=>r.mode==='fitting'||r.mode==='reducer').reduce((s,r)=>s+(r.hLoss||0),0);
-  const equipLoss  = results.filter(r=>r.mode==='manual'||r.mode==='static').reduce((s,r)=>s+(r.hLoss||0),0);
+  const pipeLoss   = realResults.filter(r=>r.type==='pipe').reduce((s,r)=>s+(r.hLoss||0),0);
+  const fitLoss    = realResults.filter(r=>r.mode==='fitting'||r.mode==='reducer').reduce((s,r)=>s+(r.hLoss||0),0);
+  const equipLoss  = realResults.filter(r=>r.mode==='manual'||r.mode==='static').reduce((s,r)=>s+(r.hLoss||0),0);
 
   function addComponent() {
     const def=ALL_COMPS.find(c=>c.type===addType);
@@ -672,7 +704,12 @@ export default function HydronicHeadLoss() {
     setAddManual('');setAddLift('');setAddKOverride('');setAddGpm('');
   }
 
-  // Spacebar triggers add
+  function addZoneSwitch(switchTo) {
+    setComponents(prev=>[...prev,{
+      id:Date.now(),type:'__zone_switch__',switchTo,
+    }]);
+  }
+
   function handleKeyDown(e) {
     if (e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='SELECT'&&e.target.tagName!=='TEXTAREA') {
       e.preventDefault(); addComponent();
@@ -696,6 +733,15 @@ export default function HydronicHeadLoss() {
     });
   }
 
+  // Determine what the current "active" zone is based on last switch
+  const currentZone = (() => {
+    let z = 'supply';
+    for (const c of components) {
+      if (c.type === '__zone_switch__') z = c.switchTo;
+    }
+    return z;
+  })();
+
   // ── Styles ────────────────────────────────────────────────────────────────
   const inp  = {background:'var(--bg-input)',border:'0.5px solid var(--border-primary)',borderRadius:'6px',padding:'6px 10px',fontSize:'13px',color:'var(--text-primary)',outline:'none',width:'100%'};
   const lbl  = {fontSize:'10px',fontWeight:500,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:'3px'};
@@ -703,6 +749,8 @@ export default function HydronicHeadLoss() {
   const secH = {fontSize:'11px',fontWeight:500,letterSpacing:'0.07em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:'10px'};
   const btnP = {background:'var(--brand)',color:'white',border:'none',borderRadius:'7px',padding:'7px 16px',fontSize:'13px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
   const btnG = {background:'transparent',color:'var(--text-secondary)',border:'0.5px solid var(--border-primary)',borderRadius:'7px',padding:'7px 14px',fontSize:'13px',cursor:'pointer'};
+  const btnZone = {background:'#fff7ed',color:'#f97316',border:'0.5px solid #fed7aa',borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnZoneBlue = {background:'var(--bg-accent)',color:'var(--brand)',border:'0.5px solid var(--border-primary)',borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
   const frow = {display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'8px'};
 
   return (
@@ -740,24 +788,26 @@ export default function HydronicHeadLoss() {
                 {Object.entries(SYSTEM_DEFAULTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
-            <div style={{flex:1,minWidth:'110px'}}><label style={lbl}>Design Temp (°F)</label><input style={inp} type="number" value={designTemp} onChange={e=>setDesignTemp(parseFloat(e.target.value)||60)}/></div>
+            <div style={{flex:1,minWidth:'110px'}}><label style={lbl}>Supply Temp (°F)</label><input style={inp} type="number" value={supplyTemp} onChange={e=>setSupplyTemp(parseFloat(e.target.value)||60)}/></div>
+            <div style={{flex:1,minWidth:'110px'}}><label style={lbl}>Return Temp (°F)</label><input style={inp} type="number" value={returnTemp} onChange={e=>setReturnTemp(parseFloat(e.target.value)||60)}/></div>
             <div style={{flex:1,minWidth:'110px'}}><label style={lbl}>Safety Factor</label><input style={inp} type="number" step="0.05" value={safetyFactor} onChange={e=>setSafetyFactor(parseFloat(e.target.value)||1.0)}/></div>
             <div style={{flex:1,minWidth:'130px'}}>
               <label style={lbl}>Starting GPM</label>
               <input style={{...inp,borderColor:currentGpm?'var(--brand)':'var(--border-primary)'}} type="number" value={currentGpm} onChange={e=>setCurrentGpm(e.target.value)} placeholder="e.g. 1101"/>
             </div>
           </div>
-          <div style={{marginTop:'8px',fontSize:'11px',color:'var(--text-muted)'}}>
-            ρ = {fluid.density.toFixed(2)} lb/ft³ · ν = {fluid.nu.toExponential(2)} ft²/s · V = GPM×0.002228/A(ft²)
+          <div style={{marginTop:'10px',display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--text-muted)'}}>
+            <div><span style={{color:'var(--brand)',fontWeight:600}}>Supply {supplyTemp}°F:</span> ρ={fluidSupply.density.toFixed(2)} lb/ft³, ν={fluidSupply.nu.toExponential(2)} ft²/s</div>
+            <div><span style={{color:'#f97316',fontWeight:600}}>Return {returnTemp}°F:</span> ρ={fluidReturn.density.toFixed(2)} lb/ft³, ν={fluidReturn.nu.toExponential(2)} ft²/s</div>
           </div>
         </div>
 
         {/* Circuit Diagram */}
-        {components.length>0&&(
+        {components.filter(c=>c.type!=='__zone_switch__').length>0&&(
           <div style={card}>
             <p style={secH}>Circuit Diagram</p>
             <div ref={diagScrollRef}>
-              <CircuitDiagram components={components}/>
+              <CircuitDiagram components={zonedComponents}/>
             </div>
           </div>
         )}
@@ -766,50 +816,91 @@ export default function HydronicHeadLoss() {
         <div style={card}>
           <p style={secH}>Index Circuit Components</p>
 
-          {/* Headers */}
           <div style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'0 6px 8px',borderBottom:'0.5px solid var(--border-primary)',marginBottom:'4px'}}>
             {['#','Component','GPM','Pipe','Vel.','f','K','Head Loss',''].map((h,i)=>(
               <span key={i} style={{fontSize:'10px',fontWeight:500,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em'}}>{h}</span>
             ))}
           </div>
 
-          {/* Scrollable rows */}
           <div ref={tableScrollRef} style={{maxHeight:'360px',overflowY:'auto',marginBottom:'4px'}}>
             {results.length===0&&(
               <div style={{textAlign:'center',padding:'28px',color:'var(--text-muted)',fontSize:'13px'}}>
                 Set starting GPM above, then add components below
               </div>
             )}
-            {results.map((comp,idx)=>{
-              const isEquip=comp.mode==='manual'||comp.mode==='static';
-              return (
-                <div key={comp.id} style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'7px 6px',background:idx%2===0?'var(--bg-tertiary)':'transparent',borderRadius:'6px',alignItems:'center',marginBottom:'2px'}}>
-                  <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{idx+1}</span>
-                  <div>
-                    <div style={{fontSize:'12px',color:'var(--text-primary)',fontWeight:500}}>{comp.label}</div>
-                    <div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:'1px'}}>{comp.detail}</div>
+            {(() => {
+              let visibleIdx = 0;
+              return results.map((comp,idx)=>{
+                if (comp.type === '__zone_switch__') {
+                  const isReturn = comp.switchTo === 'return';
+                  const color = isReturn ? '#f97316' : 'var(--brand)';
+                  const bg = isReturn ? '#fff7ed' : 'var(--bg-accent)';
+                  const tempVal = isReturn ? returnTemp : supplyTemp;
+                  return (
+                    <div key={comp.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',background:bg,border:`0.5px dashed ${color}`,borderRadius:'6px',marginBottom:'4px'}}>
+                      <span style={{fontSize:'10px',fontWeight:600,color,letterSpacing:'0.08em',textTransform:'uppercase',flex:1,textAlign:'center'}}>
+                        ─── Switch to {comp.switchTo} temp ({tempVal}°F) ───
+                      </span>
+                      <button onClick={()=>removeComp(comp.id)} style={{background:'none',border:'none',cursor:'pointer',color,fontSize:'12px'}}>✕</button>
+                    </div>
+                  );
+                }
+                visibleIdx += 1;
+                const isEquip=comp.mode==='manual'||comp.mode==='static';
+                const zoneStyle = comp.zone==='return'
+                  ? {borderLeft:'3px solid #f97316',background:idx%2===0?'#fff7ed':'#fffbf5'}
+                  : {background:idx%2===0?'var(--bg-tertiary)':'transparent'};
+                return (
+                  <div key={comp.id} style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'7px 6px',...zoneStyle,borderRadius:'6px',alignItems:'center',marginBottom:'2px'}}>
+                    <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{visibleIdx}</span>
+                    <div>
+                      <div style={{fontSize:'12px',color:'var(--text-primary)',fontWeight:500}}>
+                        {comp.label}
+                        {comp.zone==='return' && <span style={{marginLeft:'6px',fontSize:'9px',color:'#f97316',fontWeight:600}}>[RETURN]</span>}
+                      </div>
+                      <div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:'1px'}}>{comp.detail}</div>
+                    </div>
+                    <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>{isEquip?'—':comp.gpm}</span>
+                    <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{isEquip?'—':comp.mode==='reducer'?`${comp.pipe}→${comp.pipeDown}`:comp.pipe}</span>
+                    <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.vFps?`${comp.vFps.toFixed(1)} fps`:'—'}</span>
+                    <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.f?comp.f.toFixed(4):'—'}</span>
+                    <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.K!=null?comp.K.toFixed(3):'—'}</span>
+                    <span style={{fontSize:'12px',color:'var(--text-accent)',fontWeight:500}}>{(comp.hLoss||0).toFixed(3)} ft</span>
+                    <div style={{display:'flex',gap:'2px'}}>
+                      <button onClick={()=>moveComp(comp.id,-1)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↑</button>
+                      <button onClick={()=>moveComp(comp.id,1)}  style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↓</button>
+                      <button onClick={()=>removeComp(comp.id)}  style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',           fontSize:'12px',padding:'2px 3px'}}>✕</button>
+                    </div>
                   </div>
-                  <span style={{fontSize:'12px',color:'var(--text-secondary)'}}>{isEquip?'—':comp.gpm}</span>
-                  <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{isEquip?'—':comp.mode==='reducer'?`${comp.pipe}→${comp.pipeDown}`:comp.pipe}</span>
-                  <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.vFps?`${comp.vFps.toFixed(1)} fps`:'—'}</span>
-                  <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.f?comp.f.toFixed(4):'—'}</span>
-                  <span style={{fontSize:'11px',color:'var(--text-secondary)'}}>{comp.K!=null?comp.K.toFixed(3):'—'}</span>
-                  <span style={{fontSize:'12px',color:'var(--text-accent)',fontWeight:500}}>{(comp.hLoss||0).toFixed(3)} ft</span>
-                  <div style={{display:'flex',gap:'2px'}}>
-                    <button onClick={()=>moveComp(comp.id,-1)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↑</button>
-                    <button onClick={()=>moveComp(comp.id,1)}  style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↓</button>
-                    <button onClick={()=>removeComp(comp.id)}  style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',           fontSize:'12px',padding:'2px 3px'}}>✕</button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
 
+          {/* Zone switch buttons */}
+          {components.length>0 && (
+            <div style={{display:'flex',gap:'6px',marginTop:'8px',padding:'8px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)'}}>
+              <span style={{fontSize:'11px',color:'var(--text-muted)',marginRight:'auto'}}>
+                Current zone: <strong style={{color:currentZone==='return'?'#f97316':'var(--brand)'}}>
+                  {currentZone.toUpperCase()} ({currentZone==='return'?returnTemp:supplyTemp}°F)
+                </strong>
+              </span>
+              {currentZone==='supply' ? (
+                <button style={btnZone} onClick={()=>addZoneSwitch('return')}>
+                  ↓ Switch to Return Temp ({returnTemp}°F)
+                </button>
+              ) : (
+                <button style={btnZoneBlue} onClick={()=>addZoneSwitch('supply')}>
+                  ↓ Switch to Supply Temp ({supplyTemp}°F)
+                </button>
+              )}
+            </div>
+          )}
+
           {/* ── Add Row ── */}
-          <div style={{borderTop:'0.5px solid var(--border-primary)',marginTop:'6px',paddingTop:'14px'}}>
+          <div style={{borderTop:'0.5px solid var(--border-primary)',marginTop:'14px',paddingTop:'14px'}}>
             <p style={{...secH,marginBottom:'10px'}}>Add Component <span style={{fontSize:'10px',fontWeight:400,color:'var(--text-muted)',textTransform:'none',letterSpacing:0}}>(press Enter or Space to add)</span></p>
 
-            {/* Category tabs */}
             <div style={{display:'flex',gap:'6px',marginBottom:'12px',flexWrap:'wrap'}}>
               {CATEGORIES.map(cat=>(
                 <button key={cat.id} onClick={()=>handleCatChange(cat.id)} style={{
@@ -821,7 +912,6 @@ export default function HydronicHeadLoss() {
               ))}
             </div>
 
-            {/* Row 1 */}
             <div style={frow}>
               <div style={{flex:2,minWidth:'180px'}}>
                 <label style={lbl}>Type</label>
@@ -835,7 +925,6 @@ export default function HydronicHeadLoss() {
               </div>
             </div>
 
-            {/* Row 2 — dynamic */}
             <div style={frow}>
               {(selectedDef?.mode==='pipe'||selectedDef?.mode==='fitting'||selectedDef?.mode==='reducer')&&(
                 <div style={{flex:1,minWidth:'90px'}}>
@@ -895,7 +984,6 @@ export default function HydronicHeadLoss() {
               <button style={btnP} onClick={addComponent}>Add ↵</button>
             </div>
 
-            {/* Hints */}
             {selectedDef?.mode==='static'&&(
               <div style={{fontSize:'11px',color:'var(--text-muted)',padding:'7px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)'}}>
                 ⚠ Static lift applies to open loop systems only. In closed loops (CHW, HHW, closed CW), static head cancels and should not be included.
@@ -913,8 +1001,7 @@ export default function HydronicHeadLoss() {
             )}
           </div>
 
-          {/* Totals */}
-          {results.length>0&&(
+          {realResults.length>0&&(
             <div style={{borderTop:'0.5px solid var(--border-primary)',marginTop:'14px',paddingTop:'12px',display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:'16px'}}>
               <div style={{fontSize:'12px',color:'var(--text-muted)',lineHeight:2.2}}>
                 <div>Pipe friction: <strong style={{color:'var(--text-secondary)'}}>{pipeLoss.toFixed(3)} ft</strong></div>
@@ -933,20 +1020,18 @@ export default function HydronicHeadLoss() {
           )}
         </div>
 
-        {/* Report options + Generate */}
-        {results.length>0&&(
+        {realResults.length>0&&(
           <div style={{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'16px',marginBottom:'24px'}}>
             <label style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'12px',color:'var(--text-secondary)',cursor:'pointer'}}>
               <input type="checkbox" checked={includeDiagram} onChange={e=>setIncludeDiagram(e.target.checked)} style={{accentColor:'var(--brand)'}}/>
               Include circuit diagram in report
             </label>
-            <button style={btnG} onClick={()=>printReport({projectName,projectNum,engineer,systemType,designTemp,safetyFactor,results,totalHead,designHead,pipeLoss,fitLoss,equipLoss,fluid,includeDiagram,components})}>
+            <button style={btnG} onClick={()=>printReport({projectName,projectNum,engineer,systemType,supplyTemp,returnTemp,safetyFactor,results,totalHead,designHead,pipeLoss,fitLoss,equipLoss,fluidSupply,fluidReturn,includeDiagram,components:zonedComponents})}>
               Generate Report
             </button>
           </div>
         )}
 
-        {/* Methodology */}
         <div style={{...card,marginTop:'8px'}}>
           <p style={secH}>Methodology &amp; References</p>
           <div style={{fontSize:'11px',color:'var(--text-muted)',lineHeight:1.9}}>
@@ -956,6 +1041,7 @@ export default function HydronicHeadLoss() {
             <div><strong style={{color:'var(--text-secondary)'}}>K-factors:</strong> ASHRAE HoF 2021 Ch.22 Tables 3,4,6,7 (with velocity interpolation for Table 6 LR ells)</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Large pipe K-factors</strong> (tees &gt;16", std. elbows &gt;12"): Crane TP-410 A-26 through A-29</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Pipe dimensions:</strong> ASME B36.10M Sch.40 (Table 16) · ASTM B88 Type L (Table 17) — as cited in ASHRAE HoF 2021 Ch.22</div>
+            <div><strong style={{color:'var(--text-secondary)'}}>Temperature zones:</strong> Fluid properties computed separately at supply and return temps; components tagged by zone based on their position relative to the zone-switch dividers.</div>
             <div style={{color:'var(--text-tertiary)',marginTop:'4px'}}>
               Threaded NPS&lt;2½" · Flanged/welded NPS≥2½" · Reducer K ref. upstream velocity · K tolerance ±20–35% per ASHRAE Table 5
             </div>
