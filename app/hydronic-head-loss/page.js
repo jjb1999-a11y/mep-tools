@@ -1,7 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function parseLength(val) {
   if (!val) return 0;
   const str = String(val).trim();
@@ -21,42 +20,38 @@ function today() {
   const d=new Date();
   return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
 }
-
-// ── Water Properties ──────────────────────────────────────────────────────────
 function waterProps(tempF) {
   const density   = 62.56 - 0.00289*tempF - 0.0000378*tempF*tempF;
   const viscosity = Math.exp(-11.0318 + 1057.51/(tempF+214.624))/32.174;
   return { density, nu: viscosity/density };
 }
 
-// ── Pipe Data (ASHRAE HoF 2021 Ch.22 Tables 16 & 17) ─────────────────────────
 const PIPES = [
-  { label:'½" Cu-L',  nominal:0.5,  id:0.545,  roughness:0.000005 },
-  { label:'¾" Cu-L',  nominal:0.75, id:0.785,  roughness:0.000005 },
-  { label:'1" Cu-L',  nominal:1,    id:1.025,  roughness:0.000005 },
-  { label:'1¼" Cu-L', nominal:1.25, id:1.265,  roughness:0.000005 },
-  { label:'1½" Cu-L', nominal:1.5,  id:1.505,  roughness:0.000005 },
-  { label:'2" Cu-L',  nominal:2,    id:1.985,  roughness:0.000005 },
-  { label:'¾" Stl',   nominal:0.75, id:0.824,  roughness:0.00015  },
-  { label:'1" Stl',   nominal:1,    id:1.049,  roughness:0.00015  },
-  { label:'1¼" Stl',  nominal:1.25, id:1.380,  roughness:0.00015  },
-  { label:'1½" Stl',  nominal:1.5,  id:1.610,  roughness:0.00015  },
-  { label:'2" Stl',   nominal:2,    id:2.067,  roughness:0.00015  },
-  { label:'2½" Stl',  nominal:2.5,  id:2.469,  roughness:0.00015  },
-  { label:'3" Stl',   nominal:3,    id:3.068,  roughness:0.00015  },
-  { label:'4" Stl',   nominal:4,    id:4.026,  roughness:0.00015  },
-  { label:'6" Stl',   nominal:6,    id:6.065,  roughness:0.00015  },
-  { label:'8" Stl',   nominal:8,    id:7.981,  roughness:0.00015  },
-  { label:'10" Stl',  nominal:10,   id:10.020, roughness:0.00015  },
-  { label:'12" Stl',  nominal:12,   id:11.938, roughness:0.00015  },
-  { label:'14" Stl',  nominal:14,   id:13.126, roughness:0.00015  },
-  { label:'16" Stl',  nominal:16,   id:15.000, roughness:0.00015  },
-  { label:'18" Stl',  nominal:18,   id:16.876, roughness:0.00015  },
-  { label:'20" Stl',  nominal:20,   id:18.814, roughness:0.00015  },
-  { label:'24" Stl',  nominal:24,   id:22.626, roughness:0.00015  },
+  { label:'½" Cu-L',nominal:0.5,id:0.545,roughness:0.000005 },
+  { label:'¾" Cu-L',nominal:0.75,id:0.785,roughness:0.000005 },
+  { label:'1" Cu-L',nominal:1,id:1.025,roughness:0.000005 },
+  { label:'1¼" Cu-L',nominal:1.25,id:1.265,roughness:0.000005 },
+  { label:'1½" Cu-L',nominal:1.5,id:1.505,roughness:0.000005 },
+  { label:'2" Cu-L',nominal:2,id:1.985,roughness:0.000005 },
+  { label:'¾" Stl',nominal:0.75,id:0.824,roughness:0.00015 },
+  { label:'1" Stl',nominal:1,id:1.049,roughness:0.00015 },
+  { label:'1¼" Stl',nominal:1.25,id:1.380,roughness:0.00015 },
+  { label:'1½" Stl',nominal:1.5,id:1.610,roughness:0.00015 },
+  { label:'2" Stl',nominal:2,id:2.067,roughness:0.00015 },
+  { label:'2½" Stl',nominal:2.5,id:2.469,roughness:0.00015 },
+  { label:'3" Stl',nominal:3,id:3.068,roughness:0.00015 },
+  { label:'4" Stl',nominal:4,id:4.026,roughness:0.00015 },
+  { label:'6" Stl',nominal:6,id:6.065,roughness:0.00015 },
+  { label:'8" Stl',nominal:8,id:7.981,roughness:0.00015 },
+  { label:'10" Stl',nominal:10,id:10.020,roughness:0.00015 },
+  { label:'12" Stl',nominal:12,id:11.938,roughness:0.00015 },
+  { label:'14" Stl',nominal:14,id:13.126,roughness:0.00015 },
+  { label:'16" Stl',nominal:16,id:15.000,roughness:0.00015 },
+  { label:'18" Stl',nominal:18,id:16.876,roughness:0.00015 },
+  { label:'20" Stl',nominal:20,id:18.814,roughness:0.00015 },
+  { label:'24" Stl',nominal:24,id:22.626,roughness:0.00015 },
 ];
 
-// ── Crane TP-410 fT table (A-26) ─────────────────────────────────────────────
 const CRANE_FT = {
   0.5:0.027,0.75:0.025,1:0.023,1.25:0.022,1.5:0.021,
   2:0.019,2.5:0.018,3:0.018,4:0.017,5:0.016,
@@ -73,37 +68,34 @@ function getFT(nom) {
   return CRANE_FT[lo]+t*(CRANE_FT[hi]-CRANE_FT[lo]);
 }
 
-// ── K-Factor Tables (ASHRAE HoF 2021 Ch.22 Tables 3,4,6,7) ───────────────────
 const K_THREADED = {
-  0.375:{'90std':2.5, '90lr':null,'45':0.38,'return':2.5, 'teeLine':0.90,'teeBranch':2.7, 'globe':20,  'gate':0.40,'angle':null,'swingCheck':8.0},
-  0.5:  {'90std':2.1, '90lr':null,'45':0.37,'return':2.1, 'teeLine':0.90,'teeBranch':2.4, 'globe':14,  'gate':0.33,'angle':null,'swingCheck':5.5},
-  0.75: {'90std':1.7, '90lr':0.92,'45':0.35,'return':1.7, 'teeLine':0.90,'teeBranch':2.1, 'globe':10,  'gate':0.28,'angle':6.1, 'swingCheck':3.7},
-  1:    {'90std':1.5, '90lr':0.78,'45':0.34,'return':1.5, 'teeLine':0.90,'teeBranch':1.8, 'globe':9,   'gate':0.24,'angle':4.6, 'swingCheck':3.0},
-  1.25: {'90std':1.3, '90lr':0.65,'45':0.33,'return':1.3, 'teeLine':0.90,'teeBranch':1.7, 'globe':8.5, 'gate':0.22,'angle':3.6, 'swingCheck':2.7},
-  1.5:  {'90std':1.2, '90lr':0.54,'45':0.32,'return':1.2, 'teeLine':0.90,'teeBranch':1.6, 'globe':8,   'gate':0.19,'angle':2.9, 'swingCheck':2.5},
-  2:    {'90std':1.0, '90lr':0.42,'45':0.31,'return':1.0, 'teeLine':0.90,'teeBranch':1.4, 'globe':7,   'gate':0.17,'angle':2.1, 'swingCheck':2.3},
+  0.375:{'90std':2.5,'90lr':null,'45':0.38,'return':2.5,'teeLine':0.90,'teeBranch':2.7,'globe':20,'gate':0.40,'angle':null,'swingCheck':8.0},
+  0.5:{'90std':2.1,'90lr':null,'45':0.37,'return':2.1,'teeLine':0.90,'teeBranch':2.4,'globe':14,'gate':0.33,'angle':null,'swingCheck':5.5},
+  0.75:{'90std':1.7,'90lr':0.92,'45':0.35,'return':1.7,'teeLine':0.90,'teeBranch':2.1,'globe':10,'gate':0.28,'angle':6.1,'swingCheck':3.7},
+  1:{'90std':1.5,'90lr':0.78,'45':0.34,'return':1.5,'teeLine':0.90,'teeBranch':1.8,'globe':9,'gate':0.24,'angle':4.6,'swingCheck':3.0},
+  1.25:{'90std':1.3,'90lr':0.65,'45':0.33,'return':1.3,'teeLine':0.90,'teeBranch':1.7,'globe':8.5,'gate':0.22,'angle':3.6,'swingCheck':2.7},
+  1.5:{'90std':1.2,'90lr':0.54,'45':0.32,'return':1.2,'teeLine':0.90,'teeBranch':1.6,'globe':8,'gate':0.19,'angle':2.9,'swingCheck':2.5},
+  2:{'90std':1.0,'90lr':0.42,'45':0.31,'return':1.0,'teeLine':0.90,'teeBranch':1.4,'globe':7,'gate':0.17,'angle':2.1,'swingCheck':2.3},
 };
 const K_FLANGED = {
-  1:    {'90std':0.43,'90lr':0.41,'45':0.22,'return':0.43,'teeLine':0.26,'teeBranch':1.0, 'globe':13, 'gate':null,'angle':4.8,'swingCheck':2.0},
-  1.25: {'90std':0.41,'90lr':0.37,'45':0.22,'return':0.41,'teeLine':0.25,'teeBranch':0.95,'globe':12, 'gate':null,'angle':3.7,'swingCheck':2.0},
-  1.5:  {'90std':0.40,'90lr':0.35,'45':0.21,'return':0.40,'teeLine':0.23,'teeBranch':0.90,'globe':10, 'gate':null,'angle':3.0,'swingCheck':2.0},
-  2:    {'90std':0.38,'90lr':0.30,'45':0.20,'return':0.38,'teeLine':0.20,'teeBranch':0.84,'globe':9,  'gate':0.34,'angle':2.5,'swingCheck':2.0},
-  2.5:  {'90std':0.35,'90lr':0.28,'45':0.19,'return':0.35,'teeLine':0.18,'teeBranch':0.79,'globe':8,  'gate':0.27,'angle':2.3,'swingCheck':2.0},
-  3:    {'90std':0.34,'90lr':0.25,'45':0.18,'return':0.34,'teeLine':0.17,'teeBranch':0.76,'globe':7,  'gate':0.22,'angle':2.2,'swingCheck':2.0},
-  4:    {'90std':0.31,'90lr':0.22,'45':0.18,'return':0.31,'teeLine':0.15,'teeBranch':0.70,'globe':6.5,'gate':0.16,'angle':2.1,'swingCheck':2.0},
-  6:    {'90std':0.29,'90lr':0.18,'45':0.17,'return':0.29,'teeLine':0.12,'teeBranch':0.62,'globe':6,  'gate':0.10,'angle':2.1,'swingCheck':2.0},
-  8:    {'90std':0.27,'90lr':0.16,'45':0.17,'return':0.27,'teeLine':0.10,'teeBranch':0.58,'globe':5.7,'gate':0.08,'angle':2.1,'swingCheck':2.0},
-  10:   {'90std':0.25,'90lr':0.14,'45':0.16,'return':0.25,'teeLine':0.09,'teeBranch':0.53,'globe':5.7,'gate':0.06,'angle':2.1,'swingCheck':2.0},
-  12:   {'90std':0.24,'90lr':0.13,'45':0.16,'return':0.24,'teeLine':0.08,'teeBranch':0.50,'globe':5.7,'gate':0.05,'angle':2.1,'swingCheck':2.0},
+  1:{'90std':0.43,'90lr':0.41,'45':0.22,'return':0.43,'teeLine':0.26,'teeBranch':1.0,'globe':13,'gate':null,'angle':4.8,'swingCheck':2.0},
+  1.25:{'90std':0.41,'90lr':0.37,'45':0.22,'return':0.41,'teeLine':0.25,'teeBranch':0.95,'globe':12,'gate':null,'angle':3.7,'swingCheck':2.0},
+  1.5:{'90std':0.40,'90lr':0.35,'45':0.21,'return':0.40,'teeLine':0.23,'teeBranch':0.90,'globe':10,'gate':null,'angle':3.0,'swingCheck':2.0},
+  2:{'90std':0.38,'90lr':0.30,'45':0.20,'return':0.38,'teeLine':0.20,'teeBranch':0.84,'globe':9,'gate':0.34,'angle':2.5,'swingCheck':2.0},
+  2.5:{'90std':0.35,'90lr':0.28,'45':0.19,'return':0.35,'teeLine':0.18,'teeBranch':0.79,'globe':8,'gate':0.27,'angle':2.3,'swingCheck':2.0},
+  3:{'90std':0.34,'90lr':0.25,'45':0.18,'return':0.34,'teeLine':0.17,'teeBranch':0.76,'globe':7,'gate':0.22,'angle':2.2,'swingCheck':2.0},
+  4:{'90std':0.31,'90lr':0.22,'45':0.18,'return':0.31,'teeLine':0.15,'teeBranch':0.70,'globe':6.5,'gate':0.16,'angle':2.1,'swingCheck':2.0},
+  6:{'90std':0.29,'90lr':0.18,'45':0.17,'return':0.29,'teeLine':0.12,'teeBranch':0.62,'globe':6,'gate':0.10,'angle':2.1,'swingCheck':2.0},
+  8:{'90std':0.27,'90lr':0.16,'45':0.17,'return':0.27,'teeLine':0.10,'teeBranch':0.58,'globe':5.7,'gate':0.08,'angle':2.1,'swingCheck':2.0},
+  10:{'90std':0.25,'90lr':0.14,'45':0.16,'return':0.25,'teeLine':0.09,'teeBranch':0.53,'globe':5.7,'gate':0.06,'angle':2.1,'swingCheck':2.0},
+  12:{'90std':0.24,'90lr':0.13,'45':0.16,'return':0.24,'teeLine':0.08,'teeBranch':0.50,'globe':5.7,'gate':0.05,'angle':2.1,'swingCheck':2.0},
 };
 const K_WELD_LR_VEL = {
-  4:  [0.37,0.34,0.33], 6:  [0.26,0.24,0.24],
-  8:  [0.22,0.20,0.19], 10: [0.21,0.17,0.16],
-  12: [0.16,0.17,0.17], 16: [0.12,0.12,0.12],
-  20: [0.12,0.12,0.10], 24: [0.098,0.089,0.089],
+  4:[0.37,0.34,0.33],6:[0.26,0.24,0.24],8:[0.22,0.20,0.19],10:[0.21,0.17,0.16],
+  12:[0.16,0.17,0.17],16:[0.12,0.12,0.12],20:[0.12,0.12,0.10],24:[0.098,0.089,0.089],
 };
-const K_WELD_TEE_LINE   = {4:0.06,6:0.12,8:0.08,10:0.06,12:0.091,16:0.028};
-const K_WELD_TEE_BRANCH = {4:0.57,6:0.56,8:0.53,10:0.52,12:0.63, 16:0.55 };
+const K_WELD_TEE_LINE={4:0.06,6:0.12,8:0.08,10:0.06,12:0.091,16:0.028};
+const K_WELD_TEE_BRANCH={4:0.57,6:0.56,8:0.53,10:0.52,12:0.63,16:0.55};
 
 const REDUCER_DATA = [
   [4,3,0.23,0.14,0.10],[6,4,0.62,0.54,0.53],[8,6,0.31,0.28,0.26],
@@ -116,7 +108,6 @@ function getReducerK(upNom,downNom,vFps) {
   if (!row) return 0.14;
   return vFps<6?row[2]??0.14:vFps<10?row[3]??0.14:row[4]??0.14;
 }
-
 function interpK(table,nominal,key) {
   const keys=Object.keys(table).map(Number).sort((a,b)=>a-b);
   if (table[nominal]?.[key]!=null) return table[nominal][key];
@@ -131,23 +122,20 @@ function interpK(table,nominal,key) {
 function nearest(obj,nominal) {
   return obj[Object.keys(obj).map(Number).reduce((p,c)=>Math.abs(c-nominal)<Math.abs(p-nominal)?c:p)];
 }
-
 function getLRK(nominal,vFps) {
   const keys=Object.keys(K_WELD_LR_VEL).map(Number).sort((a,b)=>a-b);
   const nearNom=keys.reduce((p,c)=>Math.abs(c-nominal)<Math.abs(p-nominal)?c:p);
   const cols=K_WELD_LR_VEL[nearNom];
-  if (vFps<=4)  return cols[0];
-  if (vFps<=8)  return cols[0]+(cols[1]-cols[0])*((vFps-4)/4);
+  if (vFps<=4) return cols[0];
+  if (vFps<=8) return cols[0]+(cols[1]-cols[0])*((vFps-4)/4);
   if (vFps<=12) return cols[1]+(cols[2]-cols[1])*((vFps-8)/4);
   return cols[2];
 }
-
 function getK(type,nominal,vFps=8) {
-  if (type==='ball')      return {K:0.05,src:'Industry std'};
+  if (type==='ball') return {K:0.05,src:'Industry std'};
   if (type==='butterfly') return {K:0.30,src:'Generic (override w/ mfr Cv)'};
   const fT=getFT(nominal);
   const threaded=nominal<2.5;
-
   if (type==='90lr') {
     if (nominal<=24) return {K:getLRK(nominal,vFps),src:'ASHRAE HoF 2021 Table 6'};
     return {K:14*fT,src:'Crane TP-410 (14×fT)'};
@@ -172,14 +160,13 @@ function getK(type,nominal,vFps=8) {
     if (nominal<=16) return {K:nearest(K_WELD_TEE_BRANCH,nominal),src:'ASHRAE HoF 2021 Table 7'};
     return {K:60*fT,src:'Crane TP-410 (60×fT)'};
   }
-  if (type==='gate')      return {K:(threaded?interpK(K_THREADED,nominal,'gate'):interpK(K_FLANGED,nominal,'gate'))??8*fT,  src:'ASHRAE HoF 2021 Table 3/4'};
-  if (type==='globe')     return {K:(threaded?interpK(K_THREADED,nominal,'globe'):interpK(K_FLANGED,nominal,'globe'))??340*fT,src:'ASHRAE HoF 2021 Table 3/4'};
-  if (type==='angle')     return {K:(threaded?interpK(K_THREADED,nominal,'angle'):interpK(K_FLANGED,nominal,'angle'))??55*fT, src:'ASHRAE HoF 2021 Table 3/4'};
-  if (type==='swingCheck')return {K:(threaded?interpK(K_THREADED,nominal,'swingCheck'):interpK(K_FLANGED,nominal,'swingCheck'))??100*fT,src:'ASHRAE HoF 2021 Table 3/4'};
-  if (type==='waferCheck')return {K:null,src:'Manual override required'};
+  if (type==='gate') return {K:(threaded?interpK(K_THREADED,nominal,'gate'):interpK(K_FLANGED,nominal,'gate'))??8*fT,src:'ASHRAE HoF 2021 Table 3/4'};
+  if (type==='globe') return {K:(threaded?interpK(K_THREADED,nominal,'globe'):interpK(K_FLANGED,nominal,'globe'))??340*fT,src:'ASHRAE HoF 2021 Table 3/4'};
+  if (type==='angle') return {K:(threaded?interpK(K_THREADED,nominal,'angle'):interpK(K_FLANGED,nominal,'angle'))??55*fT,src:'ASHRAE HoF 2021 Table 3/4'};
+  if (type==='swingCheck') return {K:(threaded?interpK(K_THREADED,nominal,'swingCheck'):interpK(K_FLANGED,nominal,'swingCheck'))??100*fT,src:'ASHRAE HoF 2021 Table 3/4'};
+  if (type==='waferCheck') return {K:null,src:'Manual override required'};
   return {K:null,src:'Unknown'};
 }
-
 function frictionFactor(Re,roughness,dFt) {
   if (Re<2300) return 64/Re;
   const rr=roughness/dFt; let f=0.02;
@@ -187,62 +174,59 @@ function frictionFactor(Re,roughness,dFt) {
   return f;
 }
 
-// ── Component Catalog ─────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id:'pipe', label:'Pipe', items:[
-    {type:'pipe',      label:'Straight Pipe',               mode:'pipe'   },
-    {type:'reducer',   label:'Reducer / Expansion',         mode:'reducer'},
+  { id:'pipe',label:'Pipe',items:[
+    {type:'pipe',label:'Straight Pipe',mode:'pipe'},
+    {type:'reducer',label:'Reducer / Expansion',mode:'reducer'},
   ]},
-  { id:'fittings', label:'Fittings', items:[
-    {type:'90std',     label:'90° Elbow (Standard)',         mode:'fitting'},
-    {type:'90lr',      label:'90° Elbow (Long Radius)',      mode:'fitting'},
-    {type:'45',        label:'45° Elbow',                    mode:'fitting'},
-    {type:'return',    label:'180° Return Bend',             mode:'fitting'},
-    {type:'teeLine',   label:'Tee — Line (straight through)',mode:'fitting'},
-    {type:'teeBranch', label:'Tee — Branch',                 mode:'fitting'},
+  { id:'fittings',label:'Fittings',items:[
+    {type:'90std',label:'90° Elbow (Standard)',mode:'fitting'},
+    {type:'90lr',label:'90° Elbow (Long Radius)',mode:'fitting'},
+    {type:'45',label:'45° Elbow',mode:'fitting'},
+    {type:'return',label:'180° Return Bend',mode:'fitting'},
+    {type:'teeLine',label:'Tee — Line (straight through)',mode:'fitting'},
+    {type:'teeBranch',label:'Tee — Branch',mode:'fitting'},
   ]},
-  { id:'accessories', label:'Accessories', items:[
-    {type:'gate',      label:'Gate Valve (fully open)',      mode:'fitting'},
-    {type:'globe',     label:'Globe Valve (fully open)',     mode:'fitting'},
-    {type:'angle',     label:'Angle Valve (fully open)',     mode:'fitting'},
-    {type:'swingCheck',label:'Check Valve (Swing)',          mode:'fitting'},
+  { id:'accessories',label:'Accessories',items:[
+    {type:'gate',label:'Gate Valve (fully open)',mode:'fitting'},
+    {type:'globe',label:'Globe Valve (fully open)',mode:'fitting'},
+    {type:'angle',label:'Angle Valve (fully open)',mode:'fitting'},
+    {type:'swingCheck',label:'Check Valve (Swing)',mode:'fitting'},
     {type:'waferCheck',label:'Check Valve (Wafer) — manual K',mode:'fitting',hasKOverride:true},
-    {type:'ball',      label:'Ball Valve (fully open)',      mode:'fitting'},
-    {type:'butterfly', label:'Butterfly Valve (fully open)', mode:'fitting',hasKOverride:true},
-    {type:'balancing', label:'Balancing Valve',              mode:'manual' },
-    {type:'control',   label:'Control Valve',                mode:'manual' },
-    {type:'prv',       label:'Pressure Reducing Valve',      mode:'manual' },
-    {type:'strainer',  label:'Strainer / Y-Strainer',        mode:'manual' },
-    {type:'flow_meter',label:'Flow Meter',                   mode:'manual' },
+    {type:'ball',label:'Ball Valve (fully open)',mode:'fitting'},
+    {type:'butterfly',label:'Butterfly Valve (fully open)',mode:'fitting',hasKOverride:true},
+    {type:'balancing',label:'Balancing Valve',mode:'manual'},
+    {type:'control',label:'Control Valve',mode:'manual'},
+    {type:'prv',label:'Pressure Reducing Valve',mode:'manual'},
+    {type:'strainer',label:'Strainer / Y-Strainer',mode:'manual'},
+    {type:'flow_meter',label:'Flow Meter',mode:'manual'},
   ]},
-  { id:'equipment', label:'Equipment', items:[
-    {type:'chiller_evap',  label:'Chiller — Evaporator',       mode:'manual'},
-    {type:'chiller_cond',  label:'Chiller — Condenser',        mode:'manual'},
-    {type:'cooling_tower', label:'Cooling Tower (fill)',        mode:'manual'},
-    {type:'ct_static',     label:'Cooling Tower — Static Lift',mode:'static'},
-    {type:'boiler',        label:'Boiler',                      mode:'manual'},
-    {type:'heat_exchanger',label:'Heat Exchanger',              mode:'manual'},
-    {type:'ahu_coil',      label:'AHU / FCU Coil',             mode:'manual'},
-    {type:'custom',        label:'Custom Component',            mode:'manual'},
+  { id:'equipment',label:'Equipment',items:[
+    {type:'chiller_evap',label:'Chiller — Evaporator',mode:'manual'},
+    {type:'chiller_cond',label:'Chiller — Condenser',mode:'manual'},
+    {type:'cooling_tower',label:'Cooling Tower (fill)',mode:'manual'},
+    {type:'ct_static',label:'Cooling Tower — Static Lift',mode:'static'},
+    {type:'boiler',label:'Boiler',mode:'manual'},
+    {type:'heat_exchanger',label:'Heat Exchanger',mode:'manual'},
+    {type:'ahu_coil',label:'AHU / FCU Coil',mode:'manual'},
+    {type:'custom',label:'Custom Component',mode:'manual'},
   ]},
 ];
 const ALL_COMPS = CATEGORIES.flatMap(c=>c.items);
 
 const SYSTEM_DEFAULTS = {
-  chw:  {label:'Chilled Water',       supply:44,  return:54 },
-  cw:   {label:'Condenser Water',     supply:82,  return:94 },
-  hhw:  {label:'Heating Hot Water',   supply:140, return:120},
-  hthw: {label:'High Temp Hot Water', supply:180, return:160},
-  other:{label:'Other / Custom',      supply:60,  return:60 },
+  chw:{label:'Chilled Water',supply:44,return:54},
+  cw:{label:'Condenser Water',supply:82,return:94},
+  hhw:{label:'Heating Hot Water',supply:140,return:120},
+  hthw:{label:'High Temp Hot Water',supply:180,return:160},
+  other:{label:'Other / Custom',supply:60,return:60},
 };
 
-// ── Color tokens for zones ────────────────────────────────────────────────────
-const COLOR_SUPPLY = '#2563eb';   // blue
-const COLOR_RETURN = '#b45309';   // muted amber
+const COLOR_SUPPLY = '#2563eb';
+const COLOR_RETURN = '#b45309';
 
-// ── Abbreviations ─────────────────────────────────────────────────────────────
 const ABBREV = {
-  pipe:'PIPE', reducer:'RED/EXP',
+  pipe:'PIPE',reducer:'RED/EXP',
   '90std':'90° ELL-SR','90lr':'90° ELL-LR','45':'45° ELL','return':'RET BEND',
   teeLine:'TEE-T',teeBranch:'TEE-B',
   gate:'GV',globe:'GLV',angle:'AV',swingCheck:'CV-SW',waferCheck:'CV-WF',
@@ -267,7 +251,6 @@ const LEGEND_LABELS = {
   heat_exchanger:'Heat Exchanger',ahu_coil:'AHU / FCU Coil',custom:'Custom Component',
 };
 
-// ── Determine zone temp for each component ────────────────────────────────────
 function assignZones(components) {
   let currentZone = 'supply';
   return components.map(c => {
@@ -279,7 +262,6 @@ function assignZones(components) {
   });
 }
 
-// ── Circuit Diagram ───────────────────────────────────────────────────────────
 function CircuitDiagram({ components }) {
   const realComps = components.filter(c => c.type !== '__zone_switch__');
   if (!realComps.length) return null;
@@ -298,23 +280,23 @@ function CircuitDiagram({ components }) {
   const iconOf=(type,x,y)=>{
     const s=9;
     switch(type){
-      case 'pipe':      return <rect x={x-s} y={y-2.5} width={s*2} height={5} rx="1.5" fill="var(--brand)" fillOpacity="0.5"/>;
-      case 'reducer':   return <polygon points={`${x-s},${y-4} ${x-s/2},${y-2} ${x-s/2},${y+2} ${x-s},${y+4} ${x+s},${y+4} ${x+s/2},${y+2} ${x+s/2},${y-2} ${x+s},${y-4}`} fill="none" stroke="var(--brand)" strokeWidth="1.2"/>;
+      case 'pipe': return <rect x={x-s} y={y-2.5} width={s*2} height={5} rx="1.5" fill="var(--brand)" fillOpacity="0.5"/>;
+      case 'reducer': return <polygon points={`${x-s},${y-4} ${x-s/2},${y-2} ${x-s/2},${y+2} ${x-s},${y+4} ${x+s},${y+4} ${x+s/2},${y+2} ${x+s/2},${y-2} ${x+s},${y-4}`} fill="none" stroke="var(--brand)" strokeWidth="1.2"/>;
       case '90std':
-      case '90lr':      return <path d={`M${x-s},${y+2} Q${x-s},${y-s} ${x+2},${y-s}`} fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round"/>;
-      case '45':        return <line x1={x-s} y1={y+s/2} x2={x+s} y2={y-s/2} stroke="var(--brand)" strokeWidth="2" strokeLinecap="round"/>;
-      case 'return':    return <path d={`M${x-s},${y} A${s},${s/2} 0 0,0 ${x+s},${y}`} fill="none" stroke="var(--brand)" strokeWidth="2"/>;
-      case 'teeLine':   return <><line x1={x-s} y1={y} x2={x+s} y2={y} stroke="var(--brand)" strokeWidth="2"/><line x1={x} y1={y} x2={x} y2={y-s} stroke="var(--brand)" strokeWidth="1.5"/></>;
+      case '90lr': return <path d={`M${x-s},${y+2} Q${x-s},${y-s} ${x+2},${y-s}`} fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round"/>;
+      case '45': return <line x1={x-s} y1={y+s/2} x2={x+s} y2={y-s/2} stroke="var(--brand)" strokeWidth="2" strokeLinecap="round"/>;
+      case 'return': return <path d={`M${x-s},${y} A${s},${s/2} 0 0,0 ${x+s},${y}`} fill="none" stroke="var(--brand)" strokeWidth="2"/>;
+      case 'teeLine': return <><line x1={x-s} y1={y} x2={x+s} y2={y} stroke="var(--brand)" strokeWidth="2"/><line x1={x} y1={y} x2={x} y2={y-s} stroke="var(--brand)" strokeWidth="1.5"/></>;
       case 'teeBranch': return <><line x1={x-s} y1={y} x2={x+s} y2={y} stroke="var(--border-secondary)" strokeWidth="1.5"/><line x1={x} y1={y} x2={x} y2={y-s} stroke="var(--brand)" strokeWidth="2.5"/></>;
-      case 'gate':      return <><line x1={x-s} y1={y-s} x2={x+s} y2={y+s} stroke="var(--brand)" strokeWidth="1.8"/><line x1={x-s} y1={y+s} x2={x+s} y2={y-s} stroke="var(--brand)" strokeWidth="1.8"/ ></>;
-      case 'globe':     return <circle cx={x} cy={y} r={s} fill="none" stroke="var(--brand)" strokeWidth="1.8"/>;
-      case 'angle':     return <><circle cx={x} cy={y} r={s*0.8} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><line x1={x} y1={y-s*0.8} x2={x} y2={y+s*0.8} stroke="var(--brand)" strokeWidth="1.2"/></>;
-      case 'swingCheck':return <><circle cx={x} cy={y} r={s*0.9} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><path d={`M${x-s*0.4},${y-s*0.6} L${x+s*0.5},${y}`} stroke="var(--brand)" strokeWidth="1.8" strokeLinecap="round"/></>;
-      case 'waferCheck':return <><circle cx={x} cy={y} r={s*0.9} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><line x1={x} y1={y-s*0.9} x2={x} y2={y+s*0.9} stroke="var(--brand)" strokeWidth="1.5"/></>;
-      case 'ball':      return <circle cx={x} cy={y} r={s} fill="var(--brand)" fillOpacity="0.2" stroke="var(--brand)" strokeWidth="1.8"/>;
+      case 'gate': return <><line x1={x-s} y1={y-s} x2={x+s} y2={y+s} stroke="var(--brand)" strokeWidth="1.8"/><line x1={x-s} y1={y+s} x2={x+s} y2={y-s} stroke="var(--brand)" strokeWidth="1.8"/></>;
+      case 'globe': return <circle cx={x} cy={y} r={s} fill="none" stroke="var(--brand)" strokeWidth="1.8"/>;
+      case 'angle': return <><circle cx={x} cy={y} r={s*0.8} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><line x1={x} y1={y-s*0.8} x2={x} y2={y+s*0.8} stroke="var(--brand)" strokeWidth="1.2"/></>;
+      case 'swingCheck': return <><circle cx={x} cy={y} r={s*0.9} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><path d={`M${x-s*0.4},${y-s*0.6} L${x+s*0.5},${y}`} stroke="var(--brand)" strokeWidth="1.8" strokeLinecap="round"/></>;
+      case 'waferCheck': return <><circle cx={x} cy={y} r={s*0.9} fill="none" stroke="var(--brand)" strokeWidth="1.5"/><line x1={x} y1={y-s*0.9} x2={x} y2={y+s*0.9} stroke="var(--brand)" strokeWidth="1.5"/></>;
+      case 'ball': return <circle cx={x} cy={y} r={s} fill="var(--brand)" fillOpacity="0.2" stroke="var(--brand)" strokeWidth="1.8"/>;
       case 'butterfly': return <><line x1={x} y1={y-s} x2={x} y2={y+s} stroke="var(--brand)" strokeWidth="2.2"/><path d={`M${x},${y} L${x-s*0.8},${y-s*0.6} L${x-s*0.8},${y+s*0.6} Z`} fill="var(--brand)" fillOpacity="0.35"/><path d={`M${x},${y} L${x+s*0.8},${y-s*0.6} L${x+s*0.8},${y+s*0.6} Z`} fill="var(--brand)" fillOpacity="0.35"/></>;
       case 'ct_static': return <><line x1={x} y1={y+s} x2={x} y2={y-s} stroke="var(--brand)" strokeWidth="1.5" strokeDasharray="2,2"/><path d={`M${x-s*0.5},${y-s*0.3} L${x},${y-s} L${x+s*0.5},${y-s*0.3}`} fill="none" stroke="var(--brand)" strokeWidth="1.5"/></>;
-      default:          return <rect x={x-s} y={y-s*0.7} width={s*2} height={s*1.4} rx="2" fill="none" stroke="var(--brand)" strokeWidth="1.5"/>;
+      default: return <rect x={x-s} y={y-s*0.7} width={s*2} height={s*1.4} rx="2" fill="none" stroke="var(--brand)" strokeWidth="1.5"/>;
     }
   };
 
@@ -335,52 +317,35 @@ function CircuitDiagram({ components }) {
     const sideX=rev?p1.x-16:p1.x+16;
     const rx=30,ry=(p2.y-p1.y)/2,sweep=rev?0:1;
     zigzags.push(
-      <path key={`zz${r}`}
-        d={`M${sideX},${p1.y} A${rx},${ry} 0 0,${sweep} ${sideX},${p2.y}`}
-        fill="none" stroke="var(--border-secondary)" strokeWidth="1.2" strokeDasharray="4,3"/>
+      <path key={`zz${r}`} d={`M${sideX},${p1.y} A${rx},${ry} 0 0,${sweep} ${sideX},${p2.y}`} fill="none" stroke="var(--border-secondary)" strokeWidth="1.2" strokeDasharray="4,3"/>
     );
   }
 
-  const usedTypes=[...new Set(realComps.map(c=>c.type))];
-
-  // Pump start/end positions
+  const usedTypes=[...new Set(realComps.filter(c=>c.type!=='__pump_end__').map(c=>c.type))];
   const p0 = posOf(0);
-  const pLast = posOf(realComps.length - 1);
-  const lastRow = pLast.row;
-  const lastRowReversed = lastRow % 2 === 1;
-  // End pump position: opposite side of last component
-  const pumpEndX = lastRowReversed ? PAD_X - 30 : W - PAD_X + 30;
-  const pumpEndY = pLast.y;
-  // For "end" pump, place it to the side of the last component
-  const endPumpX = lastRowReversed ? PAD_X - 30 : W - PAD_X + 30;
 
   return (
     <div>
       <div style={{overflowX:'auto',overflowY:'auto',height:'100%',border:'0.5px solid var(--border-primary)',borderRadius:'8px',padding:'8px',background:'var(--bg-secondary)'}}>
         <svg width={W} height={H} style={{display:'block'}}>
           {rowLines}{zigzags}
-
-          {/* START PUMP */}
           <circle cx={PAD_X-30} cy={p0.y} r={16} fill="var(--bg-accent)" stroke={COLOR_SUPPLY} strokeWidth="2"/>
           <text x={PAD_X-30} y={p0.y+1} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="bold" fill={COLOR_SUPPLY}>P</text>
           <text x={PAD_X-30} y={p0.y-22} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="600">START</text>
           <text x={PAD_X-30} y={p0.y+28} textAnchor="middle" fontSize="6.5" fill="var(--text-muted)">DISCHARGE</text>
           <line x1={PAD_X-14} y1={p0.y} x2={PAD_X+CW/2-10} y2={p0.y} stroke="var(--border-secondary)" strokeWidth="1.5"/>
-
-          {/* END PUMP */}
-          <circle cx={endPumpX} cy={pumpEndY} r={16} fill="var(--bg-accent)" stroke={COLOR_SUPPLY} strokeWidth="2" strokeDasharray="3,2"/>
-          <text x={endPumpX} y={pumpEndY+1} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="bold" fill={COLOR_SUPPLY}>P</text>
-          <text x={endPumpX} y={pumpEndY-22} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="600">END</text>
-          <text x={endPumpX} y={pumpEndY+28} textAnchor="middle" fontSize="6.5" fill="var(--text-muted)">SUCTION</text>
-          {(() => {
-            const lastCompX = pLast.x;
-            const connectorStart = lastRowReversed ? lastCompX - CW/2 + 10 : lastCompX + CW/2 - 10;
-            const connectorEnd = lastRowReversed ? endPumpX + 14 : endPumpX - 14;
-            return <line x1={connectorStart} y1={pumpEndY} x2={connectorEnd} y2={pumpEndY} stroke="var(--border-secondary)" strokeWidth="1.5" strokeDasharray="3,2"/>;
-          })()}
-
           {realComps.map((comp,idx)=>{
             const {x,y}=posOf(idx);
+            if (comp.type === '__pump_end__') {
+              return (
+                <g key={comp.id}>
+                  <circle cx={x} cy={y} r={16} fill="var(--bg-accent)" stroke={COLOR_SUPPLY} strokeWidth="2" strokeDasharray="3,2"/>
+                  <text x={x} y={y+1} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="bold" fill={COLOR_SUPPLY}>P</text>
+                  <text x={x} y={y-22} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="600">END</text>
+                  <text x={x} y={y+26} textAnchor="middle" fontSize="6.5" fill="var(--text-muted)">SUCTION</text>
+                </g>
+              );
+            }
             const abbr=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
             const ringColor = comp.zone==='return' ? COLOR_RETURN : 'var(--border-primary)';
             const labelColor = comp.zone==='return' ? COLOR_RETURN : 'var(--text-muted)';
@@ -417,7 +382,6 @@ function CircuitDiagram({ components }) {
   );
 }
 
-// ── Diagram SVG for report ────────────────────────────────────────────────────
 function generateDiagramSVG(components) {
   const realComps = components.filter(c => c.type !== '__zone_switch__');
   if (!realComps.length) return '';
@@ -448,33 +412,27 @@ function generateDiagramSVG(components) {
     zz+=`<path d="M${sideX},${p1.y} A${rx},${ry} 0 0,${sweep} ${sideX},${p2.y}" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,3"/>`;
   }
   const p0=posOf(0);
-  const pLast=posOf(realComps.length-1);
-  const lastRowReversed = pLast.row % 2 === 1;
-  const endPumpX = lastRowReversed ? PAD_X - 28 : W - PAD_X + 28;
-
   let pumpStart=`<circle cx="${PAD_X-28}" cy="${p0.y}" r="13" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/><text x="${PAD_X-28}" y="${p0.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><text x="${PAD_X-28}" y="${p0.y-19}" text-anchor="middle" font-size="6" fill="#94a3b8" font-weight="600">START</text><line x1="${PAD_X-14}" y1="${p0.y}" x2="${PAD_X+CW/2-8}" y2="${p0.y}" stroke="#cbd5e1" stroke-width="1.5"/>`;
-
-  const connectorStart = lastRowReversed ? pLast.x - CW/2 + 8 : pLast.x + CW/2 - 8;
-  const connectorEnd = lastRowReversed ? endPumpX + 14 : endPumpX - 14;
-  let pumpEnd=`<circle cx="${endPumpX}" cy="${pLast.y}" r="13" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="3,2"/><text x="${endPumpX}" y="${pLast.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><text x="${endPumpX}" y="${pLast.y-19}" text-anchor="middle" font-size="6" fill="#94a3b8" font-weight="600">END</text><line x1="${connectorStart}" y1="${pLast.y}" x2="${connectorEnd}" y2="${pLast.y}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3,2"/>`;
-
   let comps='';
   realComps.forEach((comp,idx)=>{
     const {x,y}=posOf(idx);
+    if (comp.type === '__pump_end__') {
+      comps+=`<circle cx="${x}" cy="${y}" r="13" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="3,2"/><text x="${x}" y="${y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><text x="${x}" y="${y-19}" text-anchor="middle" font-size="6" fill="#94a3b8" font-weight="600">END</text>`;
+      return;
+    }
     const ab=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
     const strokeColor = comp.zone==='return' ? '#b45309' : '#e2e8f0';
     const textColor = comp.zone==='return' ? '#b45309' : '#475569';
     comps+=`<circle cx="${x}" cy="${y}" r="14" fill="white" stroke="${strokeColor}" stroke-width="${comp.zone==='return'?1.2:0.75}"/><text x="${x}" y="${y-18}" text-anchor="middle" font-size="7" fill="#94a3b8">${idx+1}</text><text x="${x}" y="${y+22}" text-anchor="middle" font-size="7" fill="${textColor}" font-weight="500">${ab}</text>`;
   });
-  const usedTypes=[...new Set(realComps.map(c=>c.type))];
+  const usedTypes=[...new Set(realComps.filter(c=>c.type!=='__pump_end__').map(c=>c.type))];
   const legendItems=usedTypes.map(t=>`<tspan>${ABBREV[t]||t}: ${LEGEND_LABELS[t]||t}</tspan>`).join('  ');
-  return `<svg width="${W}" height="${H+30}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${rowLines}${zz}${pumpStart}${pumpEnd}${comps}<text x="${PAD_X}" y="${H+18}" font-size="7.5" fill="#64748b">${legendItems}</text></svg>`;
+  return `<svg width="${W}" height="${H+30}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${rowLines}${zz}${pumpStart}${comps}<text x="${PAD_X}" y="${H+18}" font-size="7.5" fill="#64748b">${legendItems}</text></svg>`;
 }
 
-// ── Print Report ──────────────────────────────────────────────────────────────
 function printReport({projectName,projectNum,engineer,systemType,supplyTemp,returnTemp,safetyFactor,results,totalHead,designHead,pipeLoss,fitLoss,equipLoss,fluidSupply,fluidReturn,includeDiagram,components}) {
   const sys=SYSTEM_DEFAULTS[systemType]?.label||systemType;
-  const rows=results.filter(r=>r.type!=='__zone_switch__').map((r,i)=>{
+  const rows=results.filter(r=>r.type!=='__zone_switch__'&&r.type!=='__pump_end__').map((r,i)=>{
     const isEquip=r.mode==='manual'||r.mode==='static';
     const pipeCol=isEquip?'—':r.mode==='reducer'?`${r.pipe}→${r.pipeDown}`:r.pipe;
     const gpmCol=isEquip?'—':r.gpm;
@@ -532,7 +490,6 @@ th.c{text-align:center} th.r{text-align:right}
 .footer{margin-top:20px;padding-top:8px;border-top:0.5px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7.5px;color:#94a3b8}
 @page{size:letter portrait;margin:0}
 </style></head><body>
-
 <div class="top-bar">
   <div><div class="firm">MEP Calcs</div><div class="firm-sub">mepcalcs.com</div></div>
   <div class="doc-right">
@@ -541,7 +498,6 @@ th.c{text-align:center} th.r{text-align:right}
     <div style="font-size:9px;color:#475569">Date: ${today()} &nbsp;|&nbsp; Engineer: ${engineer||'_________________'}</div>
   </div>
 </div>
-
 <div class="sec">
   <div class="sec-hdr">Project Information</div>
   <div class="info-grid">
@@ -550,7 +506,6 @@ th.c{text-align:center} th.r{text-align:right}
     <div class="info-item"><label>Engineer</label><div class="v">${engineer||'—'}</div></div>
   </div>
 </div>
-
 <div class="sec">
   <div class="sec-hdr">System Parameters</div>
   <div class="info-grid">
@@ -565,9 +520,7 @@ th.c{text-align:center} th.r{text-align:right}
     Δh<sub>fitting</sub> = K·(V²/2g) &nbsp;|&nbsp; f = Colebrook-White (ASHRAE HoF 2021 Ch.22 Eq. 4)
   </div>
 </div>
-
 ${diagramSection}
-
 <div class="sec">
   <div class="sec-hdr">Index Circuit — Component Head Loss</div>
   <table>
@@ -588,7 +541,6 @@ ${diagramSection}
     <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#b45309;vertical-align:middle"></span> Return side
   </div>
 </div>
-
 <div class="sum-box">
   <div class="sec-hdr" style="margin-bottom:7px">Head Loss Summary</div>
   <div class="sum-row"><span>Pipe Friction Losses</span><span>${pipeLoss.toFixed(3)} ft</span></div>
@@ -598,30 +550,27 @@ ${diagramSection}
   <div class="sum-row" style="padding-top:4px"><span>Design Safety Factor</span><span>× ${safetyFactor}</span></div>
   <div class="sum-row sum-des"><span>DESIGN TDH</span><span>${designHead.toFixed(2)} ft &nbsp;(${(designHead*0.4335).toFixed(2)} PSI)</span></div>
 </div>
-
 <div class="ref-box">
   <strong>References &amp; Methodology — ASHRAE Handbook of Fundamentals, 2021 I-P Edition, Chapter 22: Pipe Design</strong><br/>
   · Eq. 2: Darcy-Weisbach pipe friction — Δh = f·(L/D)·(V²/2g)<br/>
   · Eq. 4: Colebrook-White friction factor (iterative, 50 passes) — 1/√f = 1.74 − 2·log(2ε/D + 18.7/Re·√f)<br/>
   · Eq. 7: Fitting / valve head loss — Δh = K·(V²/2g)<br/>
-  · Table 3: K Factors, Threaded Steel Pipe Fittings (ASHRAE HoF 2021 Ch.22)<br/>
-  · Table 4: K Factors, Flanged Welded Steel Pipe Fittings (ASHRAE HoF 2021 Ch.22)<br/>
-  · Table 6: K Values for Steel Ells, Reducers, Expansions with velocity interpolation — ASHRAE Research Project RP-968 (as cited in ASHRAE HoF 2021 Ch.22)<br/>
-  · Table 7: K Values for Steel Pipe Tees — ASHRAE Research Projects RP-1034 (as cited in ASHRAE HoF 2021 Ch.22)<br/>
-  · Table 16: Steel Pipe Dimensions — ASME Standard B36.10M, Schedule 40 (as cited in ASHRAE HoF 2021 Ch.22)<br/>
-  · Table 17: Copper Tube Dimensions — ASTM Standard B88, Type L (as cited in ASHRAE HoF 2021 Ch.22)<br/>
-  · For pipe sizes exceeding ASHRAE table limits (tees &gt;16", std. elbows &gt;12"): Crane Co., Flow of Fluids Through Valves, Fittings and Pipe, Technical Paper No. 410 (1988), Appendix A, Table A-26 through A-29<br/>
+  · Table 3: K Factors, Threaded Steel Pipe Fittings<br/>
+  · Table 4: K Factors, Flanged Welded Steel Pipe Fittings<br/>
+  · Table 6: K Values for Steel Ells, Reducers, Expansions (velocity interpolation)<br/>
+  · Table 7: K Values for Steel Pipe Tees<br/>
+  · Table 16: Steel Pipe Dimensions (ASME B36.10M Sch 40)<br/>
+  · Table 17: Copper Tube Dimensions (ASTM B88 Type L)<br/>
+  · Large pipe (tees &gt;16", std. elbows &gt;12"): Crane TP-410 (1988) A-26 through A-29<br/>
   Supply/return temperature zones: fluid properties computed separately at each temp; components on the return side use return-side properties.
-  Assumptions: Threaded NPS &lt; 2½"; flanged/welded NPS ≥ 2½". Reducer K referenced to upstream pipe velocity (ASHRAE Table 6).
-  Ball valve K=0.05 (turbulent, fully open). Butterfly valve K=0.30 generic — override with K=894·d⁴/Cv² (ASHRAE HoF 2021 Ch.22 Eq. 8).
-  K-factor tolerance ±20–35% per ASHRAE HoF 2021 Ch.22 Table 5. Static lift for open loop systems only.
+  Threaded NPS &lt; 2½"; flanged/welded NPS ≥ 2½". Reducer K referenced to upstream pipe velocity.
+  Ball valve K=0.05 (fully open). Butterfly valve K=0.30 generic — override with K=894·d⁴/Cv².
+  K-factor tolerance ±20–35% per ASHRAE Table 5.
 </div>
-
 <div class="footer">
   <div>Generated by MEP Calcs · mepcalcs.com · ${today()}</div>
-  <div>ASHRAE HoF 2021 Ch.22 / Crane TP-410 · For engineering review — verify before use on construction documents</div>
+  <div>ASHRAE HoF 2021 Ch.22 / Crane TP-410 · For engineering review</div>
 </div>
-
 </body></html>`;
 
   const w=window.open('','_blank','width=870,height=1150');
@@ -630,41 +579,40 @@ ${diagramSection}
   setTimeout(()=>w.print(),600);
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function HydronicHeadLoss() {
-  const [projectName,  setProjectName]  = useState('');
-  const [projectNum,   setProjectNum]   = useState('');
-  const [engineer,     setEngineer]     = useState('');
-  const [systemType,   setSystemType]   = useState('cw');
-  const [supplyTemp,   setSupplyTemp]   = useState(82);
-  const [returnTemp,   setReturnTemp]   = useState(94);
-  const [safetyFactor, setSafetyFactor] = useState(1.15);
-  const [components,   setComponents]   = useState([]);
-  const [currentGpm,   setCurrentGpm]   = useState('');
-  const [activeCat,    setActiveCat]    = useState('pipe');
-  const [addType,      setAddType]      = useState('pipe');
-  const [addLabel,     setAddLabel]     = useState('');
-  const [addGpm,       setAddGpm]       = useState('');
-  const [addPipe,      setAddPipe]      = useState('8" Stl');
-  const [addPipeDown,  setAddPipeDown]  = useState('6" Stl');
-  const [addLength,    setAddLength]    = useState('');
-  const [addQty,       setAddQty]       = useState('1');
-  const [addManual,    setAddManual]    = useState('');
-  const [addLift,      setAddLift]      = useState('');
-  const [addKOverride, setAddKOverride] = useState('');
+  const [projectName,setProjectName]=useState('');
+  const [projectNum,setProjectNum]=useState('');
+  const [engineer,setEngineer]=useState('');
+  const [systemType,setSystemType]=useState('cw');
+  const [supplyTemp,setSupplyTemp]=useState(82);
+  const [returnTemp,setReturnTemp]=useState(94);
+  const [safetyFactor,setSafetyFactor]=useState(1.15);
+  const [components,setComponents]=useState([]);
+  const [currentGpm,setCurrentGpm]=useState('');
+  const [activeCat,setActiveCat]=useState('pipe');
+  const [addType,setAddType]=useState('pipe');
+  const [addLabel,setAddLabel]=useState('');
+  const [addGpm,setAddGpm]=useState('');
+  const [addPipe,setAddPipe]=useState('8" Stl');
+  const [addPipeDown,setAddPipeDown]=useState('6" Stl');
+  const [addLength,setAddLength]=useState('');
+  const [addQty,setAddQty]=useState('1');
+  const [addManual,setAddManual]=useState('');
+  const [addLift,setAddLift]=useState('');
+  const [addKOverride,setAddKOverride]=useState('');
   const [includeDiagram,setIncludeDiagram]=useState(false);
 
-  const tableScrollRef  = useRef(null);
-  const diagScrollRef   = useRef(null);
+  const tableScrollRef=useRef(null);
+  const diagScrollRef=useRef(null);
 
-  const fluidSupply = waterProps(supplyTemp);
-  const fluidReturn = waterProps(returnTemp);
-  const catItems    = CATEGORIES.find(c=>c.id===activeCat)?.items||[];
-  const selectedDef = ALL_COMPS.find(c=>c.type===addType)||ALL_COMPS[0];
+  const fluidSupply=waterProps(supplyTemp);
+  const fluidReturn=waterProps(returnTemp);
+  const catItems=CATEGORIES.find(c=>c.id===activeCat)?.items||[];
+  const selectedDef=ALL_COMPS.find(c=>c.type===addType)||ALL_COMPS[0];
 
   useEffect(()=>{
     if (tableScrollRef.current) tableScrollRef.current.scrollTop=tableScrollRef.current.scrollHeight;
-    if (diagScrollRef.current)  diagScrollRef.current.scrollTop=diagScrollRef.current.scrollHeight;
+    if (diagScrollRef.current) diagScrollRef.current.scrollTop=diagScrollRef.current.scrollHeight;
   },[components]);
 
   function handleSystemChange(val){
@@ -678,10 +626,12 @@ export default function HydronicHeadLoss() {
     if(first) setAddType(first.type);
   }
 
-  // ── Calc ──────────────────────────────────────────────────────────────────
   function calcComp(comp, fluid) {
     if (comp.type === '__zone_switch__') {
       return { hLoss:0, vFps:0, Re:0, f:0, K:null, detail:`─── Switch to ${comp.switchTo} temperature ───` };
+    }
+    if (comp.type === '__pump_end__') {
+      return { hLoss:0, vFps:0, Re:0, f:0, K:null, detail:`Loop closes at pump suction` };
     }
     if (comp.mode==='static') return {hLoss:parseFloat(comp.lift)||0,vFps:0,Re:0,f:0,K:null,detail:'Static lift — open loop only'};
     if (comp.mode==='manual') return {hLoss:parseFloat(comp.manual)||0,vFps:0,Re:0,f:0,K:null,detail:'Manufacturer / manual entry'};
@@ -691,7 +641,6 @@ export default function HydronicHeadLoss() {
     const vFps=(gpm*0.002228)/area;
     const Re=vFps*dFt/fluid.nu;
     const f=frictionFactor(Re,pipe.roughness,dFt);
-
     if (comp.type==='pipe') {
       const L=parseLength(comp.length);
       return {hLoss:f*(L/dFt)*(vFps*vFps)/(2*32.174),vFps,Re,f,K:null,
@@ -722,13 +671,13 @@ export default function HydronicHeadLoss() {
     ...c,
     ...calcComp(c, c.zone==='return' ? fluidReturn : fluidSupply)
   }));
-
-  const realResults = results.filter(r => r.type !== '__zone_switch__');
-  const totalHead  = realResults.reduce((s,r)=>s+(r.hLoss||0),0);
+  const realResults = results.filter(r => r.type !== '__zone_switch__' && r.type !== '__pump_end__');
+  const totalHead = realResults.reduce((s,r)=>s+(r.hLoss||0),0);
   const designHead = totalHead*safetyFactor;
-  const pipeLoss   = realResults.filter(r=>r.type==='pipe').reduce((s,r)=>s+(r.hLoss||0),0);
-  const fitLoss    = realResults.filter(r=>r.mode==='fitting'||r.mode==='reducer').reduce((s,r)=>s+(r.hLoss||0),0);
-  const equipLoss  = realResults.filter(r=>r.mode==='manual'||r.mode==='static').reduce((s,r)=>s+(r.hLoss||0),0);
+  const pipeLoss = realResults.filter(r=>r.type==='pipe').reduce((s,r)=>s+(r.hLoss||0),0);
+  const fitLoss = realResults.filter(r=>r.mode==='fitting'||r.mode==='reducer').reduce((s,r)=>s+(r.hLoss||0),0);
+  const equipLoss = realResults.filter(r=>r.mode==='manual'||r.mode==='static').reduce((s,r)=>s+(r.hLoss||0),0);
+  const hasPumpEnd = components.some(c => c.type === '__pump_end__');
 
   function addComponent() {
     const def=ALL_COMPS.find(c=>c.type===addType);
@@ -752,9 +701,10 @@ export default function HydronicHeadLoss() {
   }
 
   function addZoneSwitch(switchTo) {
-    setComponents(prev=>[...prev,{
-      id:Date.now(),type:'__zone_switch__',switchTo,
-    }]);
+    setComponents(prev=>[...prev,{id:Date.now(),type:'__zone_switch__',switchTo}]);
+  }
+  function addPumpEnd() {
+    setComponents(prev=>[...prev,{id:Date.now(),type:'__pump_end__'}]);
   }
 
   function handleKeyDown(e) {
@@ -763,7 +713,6 @@ export default function HydronicHeadLoss() {
     }
     if (e.key==='Enter') addComponent();
   }
-
   useEffect(()=>{
     window.addEventListener('keydown',handleKeyDown);
     return ()=>window.removeEventListener('keydown',handleKeyDown);
@@ -779,7 +728,6 @@ export default function HydronicHeadLoss() {
       [n[i],n[j]]=[n[j],n[i]]; return n;
     });
   }
-
   const currentZone = (() => {
     let z = 'supply';
     for (const c of components) {
@@ -788,22 +736,20 @@ export default function HydronicHeadLoss() {
     return z;
   })();
 
-  // ── Styles ────────────────────────────────────────────────────────────────
-  const inp  = {background:'var(--bg-input)',border:'0.5px solid var(--border-primary)',borderRadius:'6px',padding:'6px 10px',fontSize:'13px',color:'var(--text-primary)',outline:'none',width:'100%'};
-  const lbl  = {fontSize:'10px',fontWeight:500,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:'3px'};
-  const card = {background:'var(--bg-card)',border:'0.5px solid var(--border-primary)',borderRadius:'10px',padding:'16px',marginBottom:'12px'};
-  const secH = {fontSize:'11px',fontWeight:500,letterSpacing:'0.07em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:'10px'};
-  const btnP = {background:'var(--brand)',color:'white',border:'none',borderRadius:'7px',padding:'7px 16px',fontSize:'13px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
-  const btnG = {background:'transparent',color:'var(--text-secondary)',border:'0.5px solid var(--border-primary)',borderRadius:'7px',padding:'7px 14px',fontSize:'13px',cursor:'pointer'};
-  const btnZoneR = {background:'transparent',color:COLOR_RETURN,border:`0.5px solid ${COLOR_RETURN}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
-  const btnZoneS = {background:'transparent',color:COLOR_SUPPLY,border:`0.5px solid ${COLOR_SUPPLY}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
-  const frow = {display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'8px'};
+  const inp={background:'var(--bg-input)',border:'0.5px solid var(--border-primary)',borderRadius:'6px',padding:'6px 10px',fontSize:'13px',color:'var(--text-primary)',outline:'none',width:'100%'};
+  const lbl={fontSize:'10px',fontWeight:500,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:'3px'};
+  const card={background:'var(--bg-card)',border:'0.5px solid var(--border-primary)',borderRadius:'10px',padding:'16px',marginBottom:'12px'};
+  const secH={fontSize:'11px',fontWeight:500,letterSpacing:'0.07em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:'10px'};
+  const btnP={background:'var(--brand)',color:'white',border:'none',borderRadius:'7px',padding:'7px 16px',fontSize:'13px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnG={background:'transparent',color:'var(--text-secondary)',border:'0.5px solid var(--border-primary)',borderRadius:'7px',padding:'7px 14px',fontSize:'13px',cursor:'pointer'};
+  const btnZoneR={background:'transparent',color:COLOR_RETURN,border:`0.5px solid ${COLOR_RETURN}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnZoneS={background:'transparent',color:COLOR_SUPPLY,border:`0.5px solid ${COLOR_SUPPLY}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnPumpEnd={background:'transparent',color:COLOR_SUPPLY,border:`0.5px dashed ${COLOR_SUPPLY}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const frow={display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'8px'};
 
   return (
     <main style={{minHeight:'100vh',background:'var(--bg-primary)',padding:'24px'}}>
       <div style={{maxWidth:'980px',margin:'0 auto'}}>
-
-        {/* Header */}
         <div style={{marginBottom:'20px'}}>
           <h1 style={{fontSize:'20px',fontWeight:500,letterSpacing:'-0.2px',marginBottom:'4px'}}>
             <span style={{color:'var(--brand)'}}>Hydronic</span>
@@ -814,7 +760,6 @@ export default function HydronicHeadLoss() {
           </p>
         </div>
 
-        {/* Project Info */}
         <div style={card}>
           <p style={secH}>Project Information</p>
           <div style={{display:'flex',gap:'12px',flexWrap:'wrap'}}>
@@ -824,7 +769,6 @@ export default function HydronicHeadLoss() {
           </div>
         </div>
 
-        {/* System Settings */}
         <div style={card}>
           <p style={secH}>System Settings</p>
           <div style={{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'flex-end'}}>
@@ -848,7 +792,6 @@ export default function HydronicHeadLoss() {
           </div>
         </div>
 
-        {/* Circuit Diagram — fixed height container */}
         <div style={card}>
           <p style={secH}>Circuit Diagram</p>
           <div ref={diagScrollRef} style={{height:'260px',overflow:'auto'}}>
@@ -862,7 +805,6 @@ export default function HydronicHeadLoss() {
           </div>
         </div>
 
-        {/* Component Table — fixed height container */}
         <div style={card}>
           <p style={secH}>Index Circuit Components</p>
 
@@ -887,6 +829,15 @@ export default function HydronicHeadLoss() {
             {(() => {
               let visibleIdx = 0;
               return results.map((comp,idx)=>{
+                if (comp.type === '__pump_end__') {
+                  return (
+                    <div key={comp.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'7px 12px',background:'var(--bg-accent)',border:`0.5px dashed ${COLOR_SUPPLY}`,borderRadius:'6px',marginBottom:'4px'}}>
+                      <div style={{width:'22px',height:'22px',borderRadius:'50%',background:COLOR_SUPPLY,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700,flexShrink:0}}>P</div>
+                      <span style={{fontSize:'10px',fontWeight:600,color:COLOR_SUPPLY,letterSpacing:'0.08em',textTransform:'uppercase',flex:1}}>End · Pump Suction (loop closed)</span>
+                      <button onClick={()=>removeComp(comp.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px'}}>✕</button>
+                    </div>
+                  );
+                }
                 if (comp.type === '__zone_switch__') {
                   const isReturn = comp.switchTo === 'return';
                   const color = isReturn ? COLOR_RETURN : COLOR_SUPPLY;
@@ -902,8 +853,7 @@ export default function HydronicHeadLoss() {
                 }
                 visibleIdx += 1;
                 const isEquip=comp.mode==='manual'||comp.mode==='static';
-                const isReturn = comp.zone==='return';
-                const zoneColor = isReturn ? COLOR_RETURN : COLOR_SUPPLY;
+                const zoneColor = comp.zone==='return' ? COLOR_RETURN : COLOR_SUPPLY;
                 return (
                   <div key={comp.id} style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'7px 6px',background:idx%2===0?'var(--bg-tertiary)':'transparent',borderLeft:`3px solid ${zoneColor}`,borderRadius:'6px',alignItems:'center',marginBottom:'2px'}}>
                     <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{visibleIdx}</span>
@@ -922,43 +872,38 @@ export default function HydronicHeadLoss() {
                     <span style={{fontSize:'12px',color:'var(--text-accent)',fontWeight:500}}>{(comp.hLoss||0).toFixed(3)} ft</span>
                     <div style={{display:'flex',gap:'2px'}}>
                       <button onClick={()=>moveComp(comp.id,-1)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↑</button>
-                      <button onClick={()=>moveComp(comp.id,1)}  style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↓</button>
-                      <button onClick={()=>removeComp(comp.id)}  style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',           fontSize:'12px',padding:'2px 3px'}}>✕</button>
+                      <button onClick={()=>moveComp(comp.id,1)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px',padding:'2px 3px'}}>↓</button>
+                      <button onClick={()=>removeComp(comp.id)} style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',fontSize:'12px',padding:'2px 3px'}}>✕</button>
                     </div>
                   </div>
                 );
               });
             })()}
-            {results.length>0 && (
-              <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'7px 12px',background:'var(--bg-accent)',border:`0.5px dashed ${COLOR_SUPPLY}`,borderRadius:'6px',marginTop:'6px'}}>
-                <div style={{width:'22px',height:'22px',borderRadius:'50%',background:COLOR_SUPPLY,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700,flexShrink:0}}>P</div>
-                <span style={{fontSize:'10px',fontWeight:600,color:COLOR_SUPPLY,letterSpacing:'0.08em',textTransform:'uppercase'}}>End · Pump Suction (loop closed)</span>
-              </div>
-            )}
           </div>
 
-          {/* Zone switch buttons */}
           {components.length>0 && (
-            <div style={{display:'flex',gap:'6px',marginTop:'8px',padding:'8px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)',alignItems:'center'}}>
+            <div style={{display:'flex',gap:'6px',marginTop:'8px',padding:'8px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)',alignItems:'center',flexWrap:'wrap'}}>
               <span style={{fontSize:'11px',color:'var(--text-muted)',marginRight:'auto',display:'flex',alignItems:'center',gap:'5px'}}>
                 <span style={{width:'8px',height:'8px',borderRadius:'50%',background:currentZone==='return'?COLOR_RETURN:COLOR_SUPPLY,display:'inline-block'}}/>
                 Current zone: <strong style={{color:currentZone==='return'?COLOR_RETURN:COLOR_SUPPLY}}>
                   {currentZone.toUpperCase()} ({currentZone==='return'?returnTemp:supplyTemp}°F)
                 </strong>
               </span>
-              {currentZone==='supply' ? (
-                <button style={btnZoneR} onClick={()=>addZoneSwitch('return')}>
-                  ↓ Switch to Return Temp ({returnTemp}°F)
-                </button>
-              ) : (
-                <button style={btnZoneS} onClick={()=>addZoneSwitch('supply')}>
-                  ↓ Switch to Supply Temp ({supplyTemp}°F)
-                </button>
+              {!hasPumpEnd && currentZone==='supply' && (
+                <button style={btnZoneR} onClick={()=>addZoneSwitch('return')}>↓ Switch to Return Temp ({returnTemp}°F)</button>
+              )}
+              {!hasPumpEnd && currentZone==='return' && (
+                <button style={btnZoneS} onClick={()=>addZoneSwitch('supply')}>↓ Switch to Supply Temp ({supplyTemp}°F)</button>
+              )}
+              {!hasPumpEnd && (
+                <button style={btnPumpEnd} onClick={addPumpEnd}>⊙ Close Loop at Pump</button>
+              )}
+              {hasPumpEnd && (
+                <span style={{fontSize:'11px',color:COLOR_SUPPLY,fontWeight:500}}>✓ Loop closed at pump suction</span>
               )}
             </div>
           )}
 
-          {/* ── Add Row ── */}
           <div style={{borderTop:'0.5px solid var(--border-primary)',marginTop:'14px',paddingTop:'14px'}}>
             <p style={{...secH,marginBottom:'10px'}}>Add Component <span style={{fontSize:'10px',fontWeight:400,color:'var(--text-muted)',textTransform:'none',letterSpacing:0}}>(press Enter or Space to add)</span></p>
 
@@ -990,8 +935,7 @@ export default function HydronicHeadLoss() {
               {(selectedDef?.mode==='pipe'||selectedDef?.mode==='fitting'||selectedDef?.mode==='reducer')&&(
                 <div style={{flex:1,minWidth:'90px'}}>
                   <label style={lbl}>GPM{currentGpm?` (${currentGpm})`:''}</label>
-                  <input style={{...inp,borderColor:addGpm?'var(--brand)':currentGpm?'var(--border-primary)':'#ef4444'}}
-                    type="number" value={addGpm} onChange={e=>setAddGpm(e.target.value)} placeholder={currentGpm||'required'}/>
+                  <input style={{...inp,borderColor:addGpm?'var(--brand)':currentGpm?'var(--border-primary)':'#ef4444'}} type="number" value={addGpm} onChange={e=>setAddGpm(e.target.value)} placeholder={currentGpm||'required'}/>
                 </div>
               )}
               {(selectedDef?.mode==='pipe'||selectedDef?.mode==='fitting'||selectedDef?.mode==='reducer')&&(
@@ -1025,9 +969,7 @@ export default function HydronicHeadLoss() {
               {selectedDef?.mode==='fitting'&&(
                 <div style={{flex:1,minWidth:'90px'}}>
                   <label style={lbl}>{selectedDef.type==='waferCheck'?'K (required)':'K Override'}</label>
-                  <input style={{...inp,borderColor:selectedDef.type==='waferCheck'&&!addKOverride?'#ef4444':'var(--border-primary)'}}
-                    type="number" step="0.001" value={addKOverride} onChange={e=>setAddKOverride(e.target.value)}
-                    placeholder={selectedDef.type==='waferCheck'?'required':'auto'}/>
+                  <input style={{...inp,borderColor:selectedDef.type==='waferCheck'&&!addKOverride?'#ef4444':'var(--border-primary)'}} type="number" step="0.001" value={addKOverride} onChange={e=>setAddKOverride(e.target.value)} placeholder={selectedDef.type==='waferCheck'?'required':'auto'}/>
                 </div>
               )}
               {selectedDef?.mode==='manual'&&(
@@ -1101,7 +1043,7 @@ export default function HydronicHeadLoss() {
             <div><strong style={{color:'var(--text-secondary)'}}>Friction factor:</strong> Colebrook-White (50-iteration) — ASHRAE HoF 2021 Ch.22 Eq. 4</div>
             <div><strong style={{color:'var(--text-secondary)'}}>K-factors:</strong> ASHRAE HoF 2021 Ch.22 Tables 3,4,6,7 (with velocity interpolation for Table 6 LR ells)</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Large pipe K-factors</strong> (tees &gt;16", std. elbows &gt;12"): Crane TP-410 A-26 through A-29</div>
-            <div><strong style={{color:'var(--text-secondary)'}}>Pipe dimensions:</strong> ASME B36.10M Sch.40 (Table 16) · ASTM B88 Type L (Table 17) — as cited in ASHRAE HoF 2021 Ch.22</div>
+            <div><strong style={{color:'var(--text-secondary)'}}>Pipe dimensions:</strong> ASME B36.10M Sch.40 (Table 16) · ASTM B88 Type L (Table 17)</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Temperature zones:</strong> Fluid properties computed separately at supply and return temps; components on the return side use return-side properties.</div>
             <div style={{color:'var(--text-tertiary)',marginTop:'4px'}}>
               Threaded NPS&lt;2½" · Flanged/welded NPS≥2½" · Reducer K ref. upstream velocity · K tolerance ±20–35% per ASHRAE Table 5
