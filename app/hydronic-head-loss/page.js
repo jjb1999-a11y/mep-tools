@@ -236,6 +236,10 @@ const SYSTEM_DEFAULTS = {
   other:{label:'Other / Custom',      supply:60,  return:60 },
 };
 
+// ── Color tokens for zones ────────────────────────────────────────────────────
+const COLOR_SUPPLY = '#2563eb';   // blue
+const COLOR_RETURN = '#b45309';   // muted amber
+
 // ── Abbreviations ─────────────────────────────────────────────────────────────
 const ABBREV = {
   pipe:'PIPE', reducer:'RED/EXP',
@@ -264,7 +268,6 @@ const LEGEND_LABELS = {
 };
 
 // ── Determine zone temp for each component ────────────────────────────────────
-// Walks through components and determines which zone (supply or return) each is in
 function assignZones(components) {
   let currentZone = 'supply';
   return components.map(c => {
@@ -280,7 +283,7 @@ function assignZones(components) {
 function CircuitDiagram({ components }) {
   const realComps = components.filter(c => c.type !== '__zone_switch__');
   if (!realComps.length) return null;
-  const ROW_MAX=14, CW=60, CH=80, PAD_X=50, PAD_Y=30, GAP_Y=40;
+  const ROW_MAX=14, CW=60, CH=80, PAD_X=70, PAD_Y=30, GAP_Y=40;
   const rows=Math.ceil(realComps.length/ROW_MAX);
   const W=PAD_X*2+ROW_MAX*CW;
   const H=PAD_Y*2+rows*CH+(rows-1)*GAP_Y;
@@ -340,24 +343,53 @@ function CircuitDiagram({ components }) {
 
   const usedTypes=[...new Set(realComps.map(c=>c.type))];
 
+  // Pump start/end positions
+  const p0 = posOf(0);
+  const pLast = posOf(realComps.length - 1);
+  const lastRow = pLast.row;
+  const lastRowReversed = lastRow % 2 === 1;
+  // End pump position: opposite side of last component
+  const pumpEndX = lastRowReversed ? PAD_X - 30 : W - PAD_X + 30;
+  const pumpEndY = pLast.y;
+  // For "end" pump, place it to the side of the last component
+  const endPumpX = lastRowReversed ? PAD_X - 30 : W - PAD_X + 30;
+
   return (
     <div>
-      <div style={{overflowX:'auto',overflowY:'auto',maxHeight:'320px',border:'0.5px solid var(--border-primary)',borderRadius:'8px',padding:'8px',background:'var(--bg-secondary)'}}>
+      <div style={{overflowX:'auto',overflowY:'auto',height:'100%',border:'0.5px solid var(--border-primary)',borderRadius:'8px',padding:'8px',background:'var(--bg-secondary)'}}>
         <svg width={W} height={H} style={{display:'block'}}>
           {rowLines}{zigzags}
-          <circle cx={PAD_X-20} cy={posOf(0).y} r={14} fill="var(--bg-accent)" stroke="var(--brand)" strokeWidth="1.8"/>
-          <text x={PAD_X-20} y={posOf(0).y+1} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="bold" fill="var(--brand)">P</text>
-          <line x1={PAD_X-6} y1={posOf(0).y} x2={PAD_X+CW/2-10} y2={posOf(0).y} stroke="var(--border-secondary)" strokeWidth="1.5"/>
+
+          {/* START PUMP */}
+          <circle cx={PAD_X-30} cy={p0.y} r={16} fill="var(--bg-accent)" stroke={COLOR_SUPPLY} strokeWidth="2"/>
+          <text x={PAD_X-30} y={p0.y+1} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="bold" fill={COLOR_SUPPLY}>P</text>
+          <text x={PAD_X-30} y={p0.y-22} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="600">START</text>
+          <text x={PAD_X-30} y={p0.y+28} textAnchor="middle" fontSize="6.5" fill="var(--text-muted)">DISCHARGE</text>
+          <line x1={PAD_X-14} y1={p0.y} x2={PAD_X+CW/2-10} y2={p0.y} stroke="var(--border-secondary)" strokeWidth="1.5"/>
+
+          {/* END PUMP */}
+          <circle cx={endPumpX} cy={pumpEndY} r={16} fill="var(--bg-accent)" stroke={COLOR_SUPPLY} strokeWidth="2" strokeDasharray="3,2"/>
+          <text x={endPumpX} y={pumpEndY+1} textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="bold" fill={COLOR_SUPPLY}>P</text>
+          <text x={endPumpX} y={pumpEndY-22} textAnchor="middle" fontSize="7" fill="var(--text-muted)" fontWeight="600">END</text>
+          <text x={endPumpX} y={pumpEndY+28} textAnchor="middle" fontSize="6.5" fill="var(--text-muted)">SUCTION</text>
+          {(() => {
+            const lastCompX = pLast.x;
+            const connectorStart = lastRowReversed ? lastCompX - CW/2 + 10 : lastCompX + CW/2 - 10;
+            const connectorEnd = lastRowReversed ? endPumpX + 14 : endPumpX - 14;
+            return <line x1={connectorStart} y1={pumpEndY} x2={connectorEnd} y2={pumpEndY} stroke="var(--border-secondary)" strokeWidth="1.5" strokeDasharray="3,2"/>;
+          })()}
+
           {realComps.map((comp,idx)=>{
             const {x,y}=posOf(idx);
             const abbr=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
-            const zoneColor = comp.zone==='return' ? '#f97316' : 'var(--brand)';
+            const ringColor = comp.zone==='return' ? COLOR_RETURN : 'var(--border-primary)';
+            const labelColor = comp.zone==='return' ? COLOR_RETURN : 'var(--text-muted)';
             return (
               <g key={comp.id}>
-                <circle cx={x} cy={y} r={16} fill="var(--bg-card)" stroke={comp.zone==='return'?'#f97316':'var(--border-primary)'} strokeWidth={comp.zone==='return'?'1.2':'0.75'}/>
+                <circle cx={x} cy={y} r={16} fill="var(--bg-card)" stroke={ringColor} strokeWidth={comp.zone==='return'?'1.2':'0.75'}/>
                 {iconOf(comp.type,x,y)}
                 <text x={x} y={y-22} textAnchor="middle" fontSize="7.5" fill="var(--text-tertiary)">{idx+1}</text>
-                <text x={x} y={y+26} textAnchor="middle" fontSize="7" fill={comp.zone==='return'?'#f97316':'var(--text-muted)'} fontWeight="500">{abbr}</text>
+                <text x={x} y={y+26} textAnchor="middle" fontSize="7" fill={labelColor} fontWeight="500">{abbr}</text>
               </g>
             );
           })}
@@ -365,16 +397,20 @@ function CircuitDiagram({ components }) {
       </div>
       <div style={{marginTop:'10px',padding:'10px 12px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)'}}>
         <div style={{fontSize:'10px',fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:'7px'}}>Legend</div>
-        <div style={{display:'flex',flexWrap:'wrap',gap:'6px 20px'}}>
+        <div style={{display:'flex',flexWrap:'wrap',gap:'6px 20px',alignItems:'center'}}>
+          <span style={{fontSize:'11px',color:'var(--text-secondary)',display:'flex',alignItems:'center',gap:'5px'}}>
+            <span style={{width:'8px',height:'8px',borderRadius:'50%',background:COLOR_SUPPLY,display:'inline-block'}}/> Supply side
+          </span>
+          <span style={{fontSize:'11px',color:'var(--text-secondary)',display:'flex',alignItems:'center',gap:'5px'}}>
+            <span style={{width:'8px',height:'8px',borderRadius:'50%',background:COLOR_RETURN,display:'inline-block'}}/> Return side
+          </span>
+          <span style={{width:'1px',height:'12px',background:'var(--border-primary)'}}/>
           {usedTypes.map(type=>(
             <span key={type} style={{fontSize:'11px',color:'var(--text-secondary)',whiteSpace:'nowrap'}}>
               <span style={{fontWeight:600,color:'var(--text-accent)'}}>{ABBREV[type]||type}</span>
               {' — '}{LEGEND_LABELS[type]||type}
             </span>
           ))}
-          <span style={{fontSize:'11px',color:'#f97316',whiteSpace:'nowrap',marginLeft:'12px'}}>
-            <span style={{fontWeight:600}}>●</span> Return side (orange)
-          </span>
         </div>
       </div>
     </div>
@@ -385,13 +421,13 @@ function CircuitDiagram({ components }) {
 function generateDiagramSVG(components) {
   const realComps = components.filter(c => c.type !== '__zone_switch__');
   if (!realComps.length) return '';
-  const ROW_MAX=14,CW=52,CH=65,PAD_X=45,PAD_Y=25,GAP_Y=35;
+  const ROW_MAX=14,CW=52,CH=65,PAD_X=60,PAD_Y=25,GAP_Y=35;
   const rows=Math.ceil(realComps.length/ROW_MAX);
   const W=PAD_X*2+ROW_MAX*CW;
   const H=PAD_Y*2+rows*CH+(rows-1)*GAP_Y;
   const posOf=(idx)=>{
     const row=Math.floor(idx/ROW_MAX),col=idx%ROW_MAX,rev=row%2===1;
-    return {x:PAD_X+(rev?(ROW_MAX-1-col):col)*CW+CW/2, y:PAD_Y+row*(CH+GAP_Y)+CH/2};
+    return {x:PAD_X+(rev?(ROW_MAX-1-col):col)*CW+CW/2, y:PAD_Y+row*(CH+GAP_Y)+CH/2, row};
   };
   let rowLines='';
   for(let r=0;r<rows;r++){
@@ -412,18 +448,27 @@ function generateDiagramSVG(components) {
     zz+=`<path d="M${sideX},${p1.y} A${rx},${ry} 0 0,${sweep} ${sideX},${p2.y}" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,3"/>`;
   }
   const p0=posOf(0);
-  let pump=`<circle cx="${PAD_X-18}" cy="${p0.y}" r="12" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/><text x="${PAD_X-18}" y="${p0.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><line x1="${PAD_X-6}" y1="${p0.y}" x2="${PAD_X+CW/2-8}" y2="${p0.y}" stroke="#cbd5e1" stroke-width="1.5"/>`;
+  const pLast=posOf(realComps.length-1);
+  const lastRowReversed = pLast.row % 2 === 1;
+  const endPumpX = lastRowReversed ? PAD_X - 28 : W - PAD_X + 28;
+
+  let pumpStart=`<circle cx="${PAD_X-28}" cy="${p0.y}" r="13" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/><text x="${PAD_X-28}" y="${p0.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><text x="${PAD_X-28}" y="${p0.y-19}" text-anchor="middle" font-size="6" fill="#94a3b8" font-weight="600">START</text><line x1="${PAD_X-14}" y1="${p0.y}" x2="${PAD_X+CW/2-8}" y2="${p0.y}" stroke="#cbd5e1" stroke-width="1.5"/>`;
+
+  const connectorStart = lastRowReversed ? pLast.x - CW/2 + 8 : pLast.x + CW/2 - 8;
+  const connectorEnd = lastRowReversed ? endPumpX + 14 : endPumpX - 14;
+  let pumpEnd=`<circle cx="${endPumpX}" cy="${pLast.y}" r="13" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="3,2"/><text x="${endPumpX}" y="${pLast.y+1}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="#2563eb">P</text><text x="${endPumpX}" y="${pLast.y-19}" text-anchor="middle" font-size="6" fill="#94a3b8" font-weight="600">END</text><line x1="${connectorStart}" y1="${pLast.y}" x2="${connectorEnd}" y2="${pLast.y}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3,2"/>`;
+
   let comps='';
   realComps.forEach((comp,idx)=>{
     const {x,y}=posOf(idx);
     const ab=ABBREV[comp.type]||comp.type.toUpperCase().slice(0,6);
-    const strokeColor = comp.zone==='return' ? '#f97316' : '#e2e8f0';
-    const textColor = comp.zone==='return' ? '#f97316' : '#475569';
+    const strokeColor = comp.zone==='return' ? '#b45309' : '#e2e8f0';
+    const textColor = comp.zone==='return' ? '#b45309' : '#475569';
     comps+=`<circle cx="${x}" cy="${y}" r="14" fill="white" stroke="${strokeColor}" stroke-width="${comp.zone==='return'?1.2:0.75}"/><text x="${x}" y="${y-18}" text-anchor="middle" font-size="7" fill="#94a3b8">${idx+1}</text><text x="${x}" y="${y+22}" text-anchor="middle" font-size="7" fill="${textColor}" font-weight="500">${ab}</text>`;
   });
   const usedTypes=[...new Set(realComps.map(c=>c.type))];
   const legendItems=usedTypes.map(t=>`<tspan>${ABBREV[t]||t}: ${LEGEND_LABELS[t]||t}</tspan>`).join('  ');
-  return `<svg width="${W}" height="${H+30}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${rowLines}${zz}${pump}${comps}<text x="${PAD_X}" y="${H+18}" font-size="7.5" fill="#64748b">${legendItems}</text></svg>`;
+  return `<svg width="${W}" height="${H+30}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">${rowLines}${zz}${pumpStart}${pumpEnd}${comps}<text x="${PAD_X}" y="${H+18}" font-size="7.5" fill="#64748b">${legendItems}</text></svg>`;
 }
 
 // ── Print Report ──────────────────────────────────────────────────────────────
@@ -436,10 +481,10 @@ function printReport({projectName,projectNum,engineer,systemType,supplyTemp,retu
     const velCol=r.vFps?`${r.vFps.toFixed(2)} fps`:'—';
     const fCol=r.f?r.f.toFixed(4):'—';
     const KCol=r.K!=null?r.K.toFixed(3):'—';
-    const zoneBadge = r.zone==='return' ? '<span style="font-size:7px;color:#f97316;font-weight:600;margin-left:3px">[R]</span>' : '';
+    const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${r.zone==='return'?'#b45309':'#2563eb'};margin-right:5px;vertical-align:middle"></span>`;
     return `<tr style="border-bottom:0.5px solid #e2e8f0">
       <td style="padding:4px 5px;font-size:9px;color:#64748b;text-align:center">${i+1}</td>
-      <td style="padding:4px 5px;font-size:9px;font-weight:500">${r.label}${zoneBadge}</td>
+      <td style="padding:4px 5px;font-size:9px;font-weight:500">${dot}${r.label}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${gpmCol}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${pipeCol}</td>
       <td style="padding:4px 5px;font-size:9px;text-align:center">${velCol}</td>
@@ -538,7 +583,10 @@ ${diagramSection}
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <div style="font-size:8px;color:#94a3b8;margin-top:4px">[R] = Component in return-temperature zone</div>
+  <div style="font-size:8px;color:#94a3b8;margin-top:4px">
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2563eb;vertical-align:middle"></span> Supply side &nbsp;·&nbsp;
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#b45309;vertical-align:middle"></span> Return side
+  </div>
 </div>
 
 <div class="sum-box">
@@ -563,7 +611,7 @@ ${diagramSection}
   · Table 16: Steel Pipe Dimensions — ASME Standard B36.10M, Schedule 40 (as cited in ASHRAE HoF 2021 Ch.22)<br/>
   · Table 17: Copper Tube Dimensions — ASTM Standard B88, Type L (as cited in ASHRAE HoF 2021 Ch.22)<br/>
   · For pipe sizes exceeding ASHRAE table limits (tees &gt;16", std. elbows &gt;12"): Crane Co., Flow of Fluids Through Valves, Fittings and Pipe, Technical Paper No. 410 (1988), Appendix A, Table A-26 through A-29<br/>
-  Supply/return temperature zones: fluid properties computed separately at each temp; components tagged [R] use return-side properties.
+  Supply/return temperature zones: fluid properties computed separately at each temp; components on the return side use return-side properties.
   Assumptions: Threaded NPS &lt; 2½"; flanged/welded NPS ≥ 2½". Reducer K referenced to upstream pipe velocity (ASHRAE Table 6).
   Ball valve K=0.05 (turbulent, fully open). Butterfly valve K=0.30 generic — override with K=894·d⁴/Cv² (ASHRAE HoF 2021 Ch.22 Eq. 8).
   K-factor tolerance ±20–35% per ASHRAE HoF 2021 Ch.22 Table 5. Static lift for open loop systems only.
@@ -669,7 +717,6 @@ export default function HydronicHeadLoss() {
       detail:`K=${K.toFixed(3)}${qty>1?` × ${qty}`:''} · ${src} · V=${vFps.toFixed(2)} fps${comp.kOverride?' ⚠':''}`};
   }
 
-  // Assign zones and calculate
   const zonedComponents = assignZones(components);
   const results = zonedComponents.map(c => ({
     ...c,
@@ -733,7 +780,6 @@ export default function HydronicHeadLoss() {
     });
   }
 
-  // Determine what the current "active" zone is based on last switch
   const currentZone = (() => {
     let z = 'supply';
     for (const c of components) {
@@ -749,8 +795,8 @@ export default function HydronicHeadLoss() {
   const secH = {fontSize:'11px',fontWeight:500,letterSpacing:'0.07em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:'10px'};
   const btnP = {background:'var(--brand)',color:'white',border:'none',borderRadius:'7px',padding:'7px 16px',fontSize:'13px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
   const btnG = {background:'transparent',color:'var(--text-secondary)',border:'0.5px solid var(--border-primary)',borderRadius:'7px',padding:'7px 14px',fontSize:'13px',cursor:'pointer'};
-  const btnZone = {background:'#fff7ed',color:'#f97316',border:'0.5px solid #fed7aa',borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
-  const btnZoneBlue = {background:'var(--bg-accent)',color:'var(--brand)',border:'0.5px solid var(--border-primary)',borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnZoneR = {background:'transparent',color:COLOR_RETURN,border:`0.5px solid ${COLOR_RETURN}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
+  const btnZoneS = {background:'transparent',color:COLOR_SUPPLY,border:`0.5px solid ${COLOR_SUPPLY}`,borderRadius:'6px',padding:'5px 10px',fontSize:'11px',fontWeight:500,cursor:'pointer',whiteSpace:'nowrap'};
   const frow = {display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'8px'};
 
   return (
@@ -797,22 +843,26 @@ export default function HydronicHeadLoss() {
             </div>
           </div>
           <div style={{marginTop:'10px',display:'flex',gap:'16px',flexWrap:'wrap',fontSize:'11px',color:'var(--text-muted)'}}>
-            <div><span style={{color:'var(--brand)',fontWeight:600}}>Supply {supplyTemp}°F:</span> ρ={fluidSupply.density.toFixed(2)} lb/ft³, ν={fluidSupply.nu.toExponential(2)} ft²/s</div>
-            <div><span style={{color:'#f97316',fontWeight:600}}>Return {returnTemp}°F:</span> ρ={fluidReturn.density.toFixed(2)} lb/ft³, ν={fluidReturn.nu.toExponential(2)} ft²/s</div>
+            <div style={{display:'flex',alignItems:'center',gap:'5px'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:COLOR_SUPPLY,display:'inline-block'}}/><span style={{fontWeight:600,color:'var(--text-secondary)'}}>Supply {supplyTemp}°F:</span> ρ={fluidSupply.density.toFixed(2)} lb/ft³, ν={fluidSupply.nu.toExponential(2)} ft²/s</div>
+            <div style={{display:'flex',alignItems:'center',gap:'5px'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:COLOR_RETURN,display:'inline-block'}}/><span style={{fontWeight:600,color:'var(--text-secondary)'}}>Return {returnTemp}°F:</span> ρ={fluidReturn.density.toFixed(2)} lb/ft³, ν={fluidReturn.nu.toExponential(2)} ft²/s</div>
           </div>
         </div>
 
-        {/* Circuit Diagram */}
-        {components.filter(c=>c.type!=='__zone_switch__').length>0&&(
-          <div style={card}>
-            <p style={secH}>Circuit Diagram</p>
-            <div ref={diagScrollRef}>
+        {/* Circuit Diagram — fixed height container */}
+        <div style={card}>
+          <p style={secH}>Circuit Diagram</p>
+          <div ref={diagScrollRef} style={{height:'260px',overflow:'auto'}}>
+            {components.filter(c=>c.type!=='__zone_switch__').length>0 ? (
               <CircuitDiagram components={zonedComponents}/>
-            </div>
+            ) : (
+              <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-muted)',fontSize:'12px',border:'0.5px dashed var(--border-primary)',borderRadius:'8px',background:'var(--bg-tertiary)'}}>
+                Circuit diagram will appear here as you add components
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Component Table */}
+        {/* Component Table — fixed height container */}
         <div style={card}>
           <p style={secH}>Index Circuit Components</p>
 
@@ -822,10 +872,16 @@ export default function HydronicHeadLoss() {
             ))}
           </div>
 
-          <div ref={tableScrollRef} style={{maxHeight:'360px',overflowY:'auto',marginBottom:'4px'}}>
+          <div ref={tableScrollRef} style={{height:'360px',overflowY:'auto',marginBottom:'4px'}}>
             {results.length===0&&(
-              <div style={{textAlign:'center',padding:'28px',color:'var(--text-muted)',fontSize:'13px'}}>
+              <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-muted)',fontSize:'13px',border:'0.5px dashed var(--border-primary)',borderRadius:'8px',background:'var(--bg-tertiary)'}}>
                 Set starting GPM above, then add components below
+              </div>
+            )}
+            {results.length>0 && (
+              <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'7px 12px',background:'var(--bg-accent)',border:`0.5px solid ${COLOR_SUPPLY}`,borderRadius:'6px',marginBottom:'6px'}}>
+                <div style={{width:'22px',height:'22px',borderRadius:'50%',background:COLOR_SUPPLY,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700,flexShrink:0}}>P</div>
+                <span style={{fontSize:'10px',fontWeight:600,color:COLOR_SUPPLY,letterSpacing:'0.08em',textTransform:'uppercase'}}>Start · Pump Discharge</span>
               </div>
             )}
             {(() => {
@@ -833,30 +889,28 @@ export default function HydronicHeadLoss() {
               return results.map((comp,idx)=>{
                 if (comp.type === '__zone_switch__') {
                   const isReturn = comp.switchTo === 'return';
-                  const color = isReturn ? '#f97316' : 'var(--brand)';
-                  const bg = isReturn ? '#fff7ed' : 'var(--bg-accent)';
+                  const color = isReturn ? COLOR_RETURN : COLOR_SUPPLY;
                   const tempVal = isReturn ? returnTemp : supplyTemp;
                   return (
-                    <div key={comp.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',background:bg,border:`0.5px dashed ${color}`,borderRadius:'6px',marginBottom:'4px'}}>
-                      <span style={{fontSize:'10px',fontWeight:600,color,letterSpacing:'0.08em',textTransform:'uppercase',flex:1,textAlign:'center'}}>
+                    <div key={comp.id} style={{display:'flex',alignItems:'center',gap:'8px',padding:'6px 10px',background:'var(--bg-tertiary)',border:`0.5px dashed ${color}`,borderRadius:'6px',marginBottom:'4px'}}>
+                      <span style={{fontSize:'10px',fontWeight:500,color:'var(--text-muted)',letterSpacing:'0.06em',textTransform:'uppercase',flex:1,textAlign:'center'}}>
                         ─── Switch to {comp.switchTo} temp ({tempVal}°F) ───
                       </span>
-                      <button onClick={()=>removeComp(comp.id)} style={{background:'none',border:'none',cursor:'pointer',color,fontSize:'12px'}}>✕</button>
+                      <button onClick={()=>removeComp(comp.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:'12px'}}>✕</button>
                     </div>
                   );
                 }
                 visibleIdx += 1;
                 const isEquip=comp.mode==='manual'||comp.mode==='static';
-                const zoneStyle = comp.zone==='return'
-                  ? {borderLeft:'3px solid #f97316',background:idx%2===0?'#fff7ed':'#fffbf5'}
-                  : {background:idx%2===0?'var(--bg-tertiary)':'transparent'};
+                const isReturn = comp.zone==='return';
+                const zoneColor = isReturn ? COLOR_RETURN : COLOR_SUPPLY;
                 return (
-                  <div key={comp.id} style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'7px 6px',...zoneStyle,borderRadius:'6px',alignItems:'center',marginBottom:'2px'}}>
+                  <div key={comp.id} style={{display:'grid',gridTemplateColumns:'28px 2.2fr 0.65fr 1.1fr 0.75fr 0.65fr 0.6fr 0.85fr 56px',gap:'4px',padding:'7px 6px',background:idx%2===0?'var(--bg-tertiary)':'transparent',borderLeft:`3px solid ${zoneColor}`,borderRadius:'6px',alignItems:'center',marginBottom:'2px'}}>
                     <span style={{fontSize:'11px',color:'var(--text-muted)'}}>{visibleIdx}</span>
                     <div>
-                      <div style={{fontSize:'12px',color:'var(--text-primary)',fontWeight:500}}>
+                      <div style={{fontSize:'12px',color:'var(--text-primary)',fontWeight:500,display:'flex',alignItems:'center',gap:'6px'}}>
+                        <span style={{display:'inline-block',width:'6px',height:'6px',borderRadius:'50%',background:zoneColor,flexShrink:0}}/>
                         {comp.label}
-                        {comp.zone==='return' && <span style={{marginLeft:'6px',fontSize:'9px',color:'#f97316',fontWeight:600}}>[RETURN]</span>}
                       </div>
                       <div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:'1px'}}>{comp.detail}</div>
                     </div>
@@ -875,22 +929,29 @@ export default function HydronicHeadLoss() {
                 );
               });
             })()}
+            {results.length>0 && (
+              <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'7px 12px',background:'var(--bg-accent)',border:`0.5px dashed ${COLOR_SUPPLY}`,borderRadius:'6px',marginTop:'6px'}}>
+                <div style={{width:'22px',height:'22px',borderRadius:'50%',background:COLOR_SUPPLY,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'11px',fontWeight:700,flexShrink:0}}>P</div>
+                <span style={{fontSize:'10px',fontWeight:600,color:COLOR_SUPPLY,letterSpacing:'0.08em',textTransform:'uppercase'}}>End · Pump Suction (loop closed)</span>
+              </div>
+            )}
           </div>
 
           {/* Zone switch buttons */}
           {components.length>0 && (
-            <div style={{display:'flex',gap:'6px',marginTop:'8px',padding:'8px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)'}}>
-              <span style={{fontSize:'11px',color:'var(--text-muted)',marginRight:'auto'}}>
-                Current zone: <strong style={{color:currentZone==='return'?'#f97316':'var(--brand)'}}>
+            <div style={{display:'flex',gap:'6px',marginTop:'8px',padding:'8px 10px',background:'var(--bg-tertiary)',borderRadius:'6px',border:'0.5px solid var(--border-primary)',alignItems:'center'}}>
+              <span style={{fontSize:'11px',color:'var(--text-muted)',marginRight:'auto',display:'flex',alignItems:'center',gap:'5px'}}>
+                <span style={{width:'8px',height:'8px',borderRadius:'50%',background:currentZone==='return'?COLOR_RETURN:COLOR_SUPPLY,display:'inline-block'}}/>
+                Current zone: <strong style={{color:currentZone==='return'?COLOR_RETURN:COLOR_SUPPLY}}>
                   {currentZone.toUpperCase()} ({currentZone==='return'?returnTemp:supplyTemp}°F)
                 </strong>
               </span>
               {currentZone==='supply' ? (
-                <button style={btnZone} onClick={()=>addZoneSwitch('return')}>
+                <button style={btnZoneR} onClick={()=>addZoneSwitch('return')}>
                   ↓ Switch to Return Temp ({returnTemp}°F)
                 </button>
               ) : (
-                <button style={btnZoneBlue} onClick={()=>addZoneSwitch('supply')}>
+                <button style={btnZoneS} onClick={()=>addZoneSwitch('supply')}>
                   ↓ Switch to Supply Temp ({supplyTemp}°F)
                 </button>
               )}
@@ -1041,7 +1102,7 @@ export default function HydronicHeadLoss() {
             <div><strong style={{color:'var(--text-secondary)'}}>K-factors:</strong> ASHRAE HoF 2021 Ch.22 Tables 3,4,6,7 (with velocity interpolation for Table 6 LR ells)</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Large pipe K-factors</strong> (tees &gt;16", std. elbows &gt;12"): Crane TP-410 A-26 through A-29</div>
             <div><strong style={{color:'var(--text-secondary)'}}>Pipe dimensions:</strong> ASME B36.10M Sch.40 (Table 16) · ASTM B88 Type L (Table 17) — as cited in ASHRAE HoF 2021 Ch.22</div>
-            <div><strong style={{color:'var(--text-secondary)'}}>Temperature zones:</strong> Fluid properties computed separately at supply and return temps; components tagged by zone based on their position relative to the zone-switch dividers.</div>
+            <div><strong style={{color:'var(--text-secondary)'}}>Temperature zones:</strong> Fluid properties computed separately at supply and return temps; components on the return side use return-side properties.</div>
             <div style={{color:'var(--text-tertiary)',marginTop:'4px'}}>
               Threaded NPS&lt;2½" · Flanged/welded NPS≥2½" · Reducer K ref. upstream velocity · K tolerance ±20–35% per ASHRAE Table 5
             </div>
