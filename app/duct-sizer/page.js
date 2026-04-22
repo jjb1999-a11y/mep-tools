@@ -44,13 +44,9 @@ function nextStdUp(dIn) {
 function ceil2(v) { return Math.ceil(v / 2) * 2; }
 
 // ── Equivalent round diameter (ASHRAE HoF 2021 Ch.21 Eq. 24-25) ───────────────
-// Rectangular: De = 1.30 × (a·b)^0.625 / (a+b)^0.25
 function rectEquivRound(w, h) {
   return 1.30 * Math.pow(w * h, 0.625) / Math.pow(w + h, 0.25);
 }
-// Flat oval: De = 1.55 × A^0.625 / P^0.25
-// A = π·a²/4 + a·(B−a)  ·  P = π·a + 2·(B−a)
-// where a = minor axis, B = major axis
 function ovalEquivRound(minor, major) {
   const a = minor, B = major;
   const A = (Math.PI * a * a / 4) + a * (B - a);
@@ -86,10 +82,6 @@ function ovalDuct(cfm, vel, constrainMinor, constrainMajor) {
   return { minor: A, major: B };
 }
 
-function velStatus(V) {
-  return V > 2000 ? 'high' : V < 400 ? 'low' : 'ok';
-}
-
 export default function Home() {
   const [tab,                 setTab]                 = useState('round');
   const [cfm,                 setCfm]                 = useState('');
@@ -103,8 +95,8 @@ export default function Home() {
   const [results,             setResults]             = useState(null);
   const [warning,             setWarning]             = useState('');
 
-  // ── Manual mode state ───────────────────────────────────────────────────────
-  const [manualShape,   setManualShape]   = useState('round'); // round | rect | oval
+  // Manual mode state
+  const [manualShape,   setManualShape]   = useState('round');
   const [manualDia,     setManualDia]     = useState('');
   const [manualW,       setManualW]       = useState('');
   const [manualH,       setManualH]       = useState('');
@@ -113,7 +105,6 @@ export default function Home() {
   const [manualResults, setManualResults] = useState(null);
 
   useEffect(() => { compute(); }, [cfm, method, fr, velTarget, maxW, maxH, tab, ovalMinorConstraint, ovalMajorConstraint]);
-
   useEffect(() => { computeManual(); }, [cfm, manualShape, manualDia, manualW, manualH, manualMinor, manualMajor, tab]);
 
   function compute() {
@@ -160,7 +151,6 @@ export default function Home() {
       rectW: rect.w, rectH: rect.h, ar: rect.ar,
       arWarn: parseFloat(rect.ar) > 4,
       ovalMinor: oval.minor, ovalMajor: oval.major,
-      vStatus: velStatus(V),
     });
   }
 
@@ -169,7 +159,7 @@ export default function Home() {
     const Q = parseFloat(cfm);
     if (!Q || Q <= 0) { setManualResults(null); return; }
 
-    let dEq = 0; // equivalent round diameter in inches
+    let dEq = 0;
     let areaIn2 = 0;
     let shapeLabel = '';
 
@@ -198,9 +188,7 @@ export default function Home() {
 
     const V = Q * 144 / areaIn2;
     const fr = calcFriction(Q, dEq);
-    const vs = velStatus(V);
 
-    // Aspect ratio warning for rectangular
     let arWarn = false, ar = null;
     if (manualShape === 'rect') {
       const w = parseFloat(manualW), h = parseFloat(manualH);
@@ -214,22 +202,14 @@ export default function Home() {
       fr: fr.toFixed(4),
       dEq: dEq.toFixed(1),
       areaFt2: (areaIn2 / 144).toFixed(2),
-      vStatus: vs,
       ar, arWarn,
     });
   }
-
-  const vColor = results?.vStatus === 'high' ? 'text-red-400' : results?.vStatus === 'low' ? 'text-yellow-400' : 'text-blue-400';
-  const vLabel = results?.vStatus === 'high' ? '⚠️ Too fast' : results?.vStatus === 'low' ? '⚠️ Too slow' : '✓ Good';
-
-  const mvColor = manualResults?.vStatus === 'high' ? 'text-red-400' : manualResults?.vStatus === 'low' ? 'text-yellow-400' : 'text-blue-400';
-  const mvLabel = manualResults?.vStatus === 'high' ? '⚠️ Too fast' : manualResults?.vStatus === 'low' ? '⚠️ Too slow' : '✓ Good';
 
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-6xl mx-auto px-4 py-12">
 
-        {/* Header */}
         <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition mb-4 inline-block">← Back to tools</a>
         <h1 className="text-3xl font-bold text-blue-400 mb-8">Duct Sizer</h1>
 
@@ -260,7 +240,6 @@ export default function Home() {
                   className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white text-lg outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 
-              {/* ── Sizing mode inputs (round/oval tabs) ── */}
               {tab !== 'manual' && (
                 <>
                   <div>
@@ -344,7 +323,6 @@ export default function Home() {
                 </>
               )}
 
-              {/* ── Manual mode inputs ── */}
               {tab === 'manual' && (
                 <>
                   <div>
@@ -421,7 +399,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Sizing Results ── */}
+            {/* Sizing Results */}
             {results && tab !== 'manual' && (
               <div className="bg-gray-900 rounded-2xl p-6 space-y-4">
                 <h2 className="text-lg font-semibold text-gray-200">Results</h2>
@@ -429,8 +407,8 @@ export default function Home() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-800 rounded-xl p-4">
                     <p className="text-xs text-gray-400 mb-1">Velocity</p>
-                    <p className={`text-2xl font-bold ${vColor}`}>{results.V}</p>
-                    <p className="text-sm text-gray-400">FPM {vLabel}</p>
+                    <p className="text-2xl font-bold text-blue-400">{results.V}</p>
+                    <p className="text-sm text-gray-400">FPM</p>
                   </div>
                   <div className="bg-gray-800 rounded-xl p-4">
                     <p className="text-xs text-gray-400 mb-1">Actual Friction</p>
@@ -467,7 +445,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Manual Results ── */}
+            {/* Manual Results */}
             {manualResults && tab === 'manual' && (
               <div className="bg-gray-900 rounded-2xl p-6 space-y-4">
                 <h2 className="text-lg font-semibold text-gray-200">Performance at {manualResults.shapeLabel || 'given size'}</h2>
@@ -481,8 +459,8 @@ export default function Home() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gray-800 rounded-xl p-4">
                         <p className="text-xs text-gray-400 mb-1">Velocity</p>
-                        <p className={`text-2xl font-bold ${mvColor}`}>{manualResults.V}</p>
-                        <p className="text-sm text-gray-400">FPM {mvLabel}</p>
+                        <p className="text-2xl font-bold text-blue-400">{manualResults.V}</p>
+                        <p className="text-sm text-gray-400">FPM</p>
                       </div>
                       <div className="bg-gray-800 rounded-xl p-4">
                         <p className="text-xs text-gray-400 mb-1">Friction Rate</p>
