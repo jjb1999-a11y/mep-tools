@@ -147,7 +147,7 @@ export default function Home() {
     const oval     = ovalDuct(Q, V, oMinor, oMajor);
 
     setResults({
-      stdD, V: Math.round(V), fr: frActual.toFixed(4),
+      stdD, V: Math.round(V), fr: frActual.toFixed(2),
       rectW: rect.w, rectH: rect.h, ar: rect.ar,
       arWarn: parseFloat(rect.ar) > 4,
       ovalMinor: oval.minor, ovalMajor: oval.major,
@@ -199,7 +199,7 @@ export default function Home() {
     setManualResults({
       shapeLabel,
       V: Math.round(V),
-      fr: fr.toFixed(4),
+      fr: fr.toFixed(2),
       dEq: dEq.toFixed(1),
       areaFt2: (areaIn2 / 144).toFixed(2),
       ar, arWarn,
