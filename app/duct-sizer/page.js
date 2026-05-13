@@ -43,7 +43,7 @@ function nextStdUp(dIn) {
 }
 function ceil2(v) { return Math.ceil(v / 2) * 2; }
 
-// ── Equivalent round diameter (ASHRAE HoF 2021 Ch.21 Eq. 24-25) ───────────────
+// Equivalent round diameter (ASHRAE HoF 2021 Ch.21 Eq. 24-25)
 function rectEquivRound(w, h) {
   return 1.30 * Math.pow(w * h, 0.625) / Math.pow(w + h, 0.25);
 }
@@ -54,17 +54,19 @@ function ovalEquivRound(minor, major) {
   return 1.55 * Math.pow(A, 0.625) / Math.pow(P, 0.25);
 }
 
-function rectDuct(cfm, vel, maxW, maxH) {
+// Solve rect dimensions for a target velocity at given CFM, with optional max constraints.
+function rectFromVelocity(cfm, vel, maxW, maxH) {
   const areaIn2 = (cfm / vel) * 144;
   let w, h;
   if (maxH > 0)      { h = maxH; w = areaIn2 / h; }
   else if (maxW > 0) { w = maxW; h = areaIn2 / w; }
   else               { h = Math.sqrt(areaIn2 / 2); w = h * 2; }
   w = ceil2(w); h = ceil2(h);
-  return { w, h, ar: (Math.max(w, h) / Math.min(w, h)).toFixed(1) };
+  return { w, h };
 }
 
-function ovalDuct(cfm, vel, constrainMinor, constrainMajor) {
+// Solve oval dimensions for a target velocity at given CFM, with optional constraints.
+function ovalFromVelocity(cfm, vel, constrainMinor, constrainMajor) {
   const areaIn2 = (cfm / vel) * 144;
   const equivD  = Math.sqrt(areaIn2 * 4 / Math.PI);
   let A, B;
@@ -82,26 +84,18 @@ function ovalDuct(cfm, vel, constrainMinor, constrainMajor) {
   return { minor: A, major: B };
 }
 
-// ── Manual explorer helpers ──────────────────────────────────────────────────
-// Returns the target equivalent-round diameter that satisfies the active constraint(s).
+// Target equivalent-round diameter for explorer suggestions.
 function targetEquivDia(cfm, mode, maxFr, maxVel) {
   if (mode === 'friction') return calcDiameter(cfm, maxFr);
   if (mode === 'velocity') return Math.sqrt((cfm / maxVel) / Math.PI) * 24;
-  // both: the larger required diameter
   const dFr  = calcDiameter(cfm, maxFr);
   const dVel = Math.sqrt((cfm / maxVel) / Math.PI) * 24;
   return Math.max(dFr, dVel);
 }
 
-function initialRoundDia(cfm, mode, maxFr, maxVel) {
-  return nextStdUp(targetEquivDia(cfm, mode, maxFr, maxVel));
-}
-
-// Spread of common rectangular aspect ratios for a given target equiv. round.
-// Solves rectEquivRound for h with w = AR*h:
-//   dEq = 1.30 * AR^0.625 * h / (AR+1)^0.25
-function initialRects(cfm, mode, maxFr, maxVel) {
-  const dEq = targetEquivDia(cfm, mode, maxFr, maxVel);
+// Spread of rectangular candidates across common aspect ratios.
+function initialRects(cfm, maxFr, maxVel) {
+  const dEq = targetEquivDia(cfm, 'both', maxFr, maxVel);
   const ARs = [1.0, 1.6, 2.0, 2.5, 4.0];
   const out = [];
   const seen = new Set();
@@ -118,479 +112,520 @@ function initialRects(cfm, mode, maxFr, maxVel) {
   return out;
 }
 
+// Spread of flat-oval candidates at different minor:major ratios.
+function initialOvals(cfm, maxFr, maxVel) {
+  const dEq = targetEquivDia(cfm, 'both', maxFr, maxVel);
+  const areaIn2 = Math.PI * Math.pow(dEq, 2) / 4;
+  // pick three minor axes: aggressive, balanced, tall
+  const minors = [
+    Math.max(6, ceil2(dEq * 0.45)),
+    Math.max(6, ceil2(dEq * 0.65)),
+    Math.max(6, ceil2(dEq * 0.85)),
+  ];
+  const out = [];
+  const seen = new Set();
+  for (const m of minors) {
+    const major = ceil2((areaIn2 - (Math.PI / 4) * m * m) / m + m);
+    if (major <= m) continue;
+    const key = `${major}x${m}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ minor: m, major });
+  }
+  return out;
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [tab,                 setTab]                 = useState('manual');
-  const [cfm,                 setCfm]                 = useState('');
-  const [method,              setMethod]              = useState('friction');
-  const [fr,                  setFr]                  = useState('0.1');
-  const [velTarget,           setVelTarget]           = useState('1000');
-  const [maxW,                setMaxW]                = useState('');
-  const [maxH,                setMaxH]                = useState('');
-  const [ovalMinorConstraint, setOvalMinorConstraint] = useState('');
-  const [ovalMajorConstraint, setOvalMajorConstraint] = useState('');
-  const [results,             setResults]             = useState(null);
-  const [warning,             setWarning]             = useState('');
+  const [cfm,           setCfm]           = useState('');
+  const [shape,         setShape]         = useState('rect');   // 'rect' | 'oval'
+  const [mode,          setMode]          = useState('both');   // 'both' | 'friction' | 'velocity'
 
-  // Manual explorer state
-  const [manualMode,     setManualMode]     = useState('both');   // 'friction' | 'velocity' | 'both'
-  const [manualMaxFr,    setManualMaxFr]    = useState('0.08');
-  const [manualMaxVel,   setManualMaxVel]   = useState('800');
-  const [manualRoundDia, setManualRoundDia] = useState(null);
-  const [manualRects,    setManualRects]    = useState([]);
+  // Single-result mode inputs
+  const [targetFr,      setTargetFr]      = useState('0.1');
+  const [targetVel,     setTargetVel]     = useState('1000');
+  const [maxW,          setMaxW]          = useState('');
+  const [maxH,          setMaxH]          = useState('');
+  const [maxMinor,      setMaxMinor]      = useState('');
+  const [maxMajor,      setMaxMajor]      = useState('');
 
-  useEffect(() => { compute(); }, [cfm, method, fr, velTarget, maxW, maxH, tab, ovalMinorConstraint, ovalMajorConstraint]);
+  // Explorer (Both) mode inputs
+  const [explMaxFr,     setExplMaxFr]     = useState('0.08');
+  const [explMaxVel,    setExplMaxVel]    = useState('800');
+  const [roundDia,      setRoundDia]      = useState(null);
+  const [rects,         setRects]         = useState([]);
+  const [ovals,         setOvals]         = useState([]);
 
-  // Auto-initialize manual suggestions the first time CFM (and required constraint) becomes valid.
+  const [refOpen,       setRefOpen]       = useState(false);
+
+  const Q       = parseFloat(cfm)        || 0;
+  const fFr     = parseFloat(explMaxFr)  || 0;
+  const fVel    = parseFloat(explMaxVel) || 0;
+  const tFr     = parseFloat(targetFr)   || 0;
+  const tVel    = parseFloat(targetVel)  || 0;
+  const cW      = parseFloat(maxW)       || 0;
+  const cH      = parseFloat(maxH)       || 0;
+  const cMinor  = parseFloat(maxMinor)   || 0;
+  const cMajor  = parseFloat(maxMajor)   || 0;
+
+  // Auto-initialize explorer suggestions on first valid input.
   useEffect(() => {
-    if (tab !== 'manual') return;
-    const Q  = parseFloat(cfm);
-    const fv = parseFloat(manualMaxFr);
-    const vv = parseFloat(manualMaxVel);
-    if (!Q || Q <= 0) return;
-    if ((manualMode === 'friction' || manualMode === 'both') && (!fv || fv <= 0)) return;
-    if ((manualMode === 'velocity' || manualMode === 'both') && (!vv || vv <= 0)) return;
+    if (mode !== 'both' || !Q || !fFr || !fVel) return;
+    if (roundDia === null) setRoundDia(nextStdUp(targetEquivDia(Q, 'both', fFr, fVel)));
+    if (shape === 'rect' && rects.length === 0) setRects(initialRects(Q, fFr, fVel));
+    if (shape === 'oval' && ovals.length === 0) setOvals(initialOvals(Q, fFr, fVel));
+  }, [mode, shape, Q, fFr, fVel]);
 
-    if (manualRoundDia === null) setManualRoundDia(initialRoundDia(Q, manualMode, fv, vv));
-    if (manualRects.length === 0) setManualRects(initialRects(Q, manualMode, fv, vv));
-  }, [tab, cfm, manualMode, manualMaxFr, manualMaxVel]);
-
-  function regenerateManual() {
-    const Q  = parseFloat(cfm);
-    const fv = parseFloat(manualMaxFr);
-    const vv = parseFloat(manualMaxVel);
-    if (!Q || Q <= 0) { setManualRoundDia(null); setManualRects([]); return; }
-    setManualRoundDia(initialRoundDia(Q, manualMode, fv, vv));
-    setManualRects(initialRects(Q, manualMode, fv, vv));
+  function regenerate() {
+    if (!Q || !fFr || !fVel) return;
+    setRoundDia(nextStdUp(targetEquivDia(Q, 'both', fFr, fVel)));
+    setRects(initialRects(Q, fFr, fVel));
+    setOvals(initialOvals(Q, fFr, fVel));
   }
 
   function stepRound(dir) {
-    if (manualRoundDia === null) return;
-    const idx = STANDARD_ROUND.indexOf(manualRoundDia);
-    if (idx < 0) { setManualRoundDia(nearestStd(manualRoundDia + dir * 2)); return; }
-    const newIdx = Math.max(0, Math.min(STANDARD_ROUND.length - 1, idx + dir));
-    setManualRoundDia(STANDARD_ROUND[newIdx]);
+    if (roundDia === null) return;
+    const idx = STANDARD_ROUND.indexOf(roundDia);
+    if (idx < 0) return setRoundDia(nearestStd(roundDia + dir * 2));
+    const next = Math.max(0, Math.min(STANDARD_ROUND.length - 1, idx + dir));
+    setRoundDia(STANDARD_ROUND[next]);
   }
-
   function stepRect(i, field, dir) {
-    setManualRects(rects => rects.map((r, j) => {
-      if (j !== i) return r;
-      const newVal = Math.max(4, r[field] + dir * 2);
-      return { ...r, [field]: newVal };
+    setRects(r => r.map((row, j) => j === i ? { ...row, [field]: Math.max(4, row[field] + dir * 2) } : row));
+  }
+  function stepOval(i, field, dir) {
+    setOvals(o => o.map((row, j) => {
+      if (j !== i) return row;
+      const next = { ...row, [field]: Math.max(field === 'minor' ? 6 : 8, row[field] + dir * 2) };
+      if (next.major <= next.minor) next.major = next.minor + 2;
+      return next;
     }));
   }
 
-  function compute() {
-    setWarning('');
-    if (tab === 'manual') { setResults(null); return; }
-    const Q      = parseFloat(cfm);
-    const frVal  = parseFloat(fr);
-    const velVal = parseFloat(velTarget);
-    const mw     = parseFloat(maxW) || 0;
-    const mh     = parseFloat(maxH) || 0;
-    const oMinor = parseFloat(ovalMinorConstraint) || 0;
-    const oMajor = parseFloat(ovalMajorConstraint) || 0;
+  // Single-result computations ───────────────────────────────────────────────
+  const singleResult = (() => {
+    if (mode === 'both' || !Q) return null;
 
-    if (!Q || Q <= 0) { setResults(null); return; }
-
-    let stdD, originalStd;
-
-    if (method === 'friction') {
-      if (!frVal || frVal <= 0) return;
-      stdD = nearestStd(calcDiameter(Q, frVal));
-    } else if (method === 'velocity') {
-      if (!velVal || velVal <= 0) return;
-      stdD = nearestStd(Math.sqrt((Q / velVal) / Math.PI) * 24);
+    // Required equivalent diameter from the active target.
+    let dReq;
+    if (mode === 'friction') {
+      if (!tFr) return null;
+      dReq = calcDiameter(Q, tFr);
     } else {
-      if (!frVal || frVal <= 0 || !velVal || velVal <= 0) return;
-      stdD = nearestStd(calcDiameter(Q, frVal));
-      originalStd = stdD;
-      while (calcVelocity(Q, stdD) > velVal) {
-        const next = nextStdUp(stdD);
-        if (next === stdD) break;
-        stdD = next;
-      }
-      if (stdD !== originalStd)
-        setWarning(`Upsized from ${originalStd}" to ${stdD}" to satisfy max velocity of ${velVal} FPM`);
+      if (!tVel) return null;
+      dReq = Math.sqrt((Q / tVel) / Math.PI) * 24;
     }
+    const dia = nearestStd(dReq);
+    // For velocity-only, upsize if rounding caused exceedance.
+    let finalDia = dia;
+    if (mode === 'velocity' && calcVelocity(Q, finalDia) > tVel) {
+      const up = nextStdUp(finalDia);
+      if (up > finalDia) finalDia = up;
+    }
+    const Vround = calcVelocity(Q, finalDia);
+    const Fround = calcFriction(Q, finalDia);
 
-    const V        = calcVelocity(Q, stdD);
-    const frActual = calcFriction(Q, stdD);
-    const rect     = rectDuct(Q, V, mw, mh);
-    const oval     = ovalDuct(Q, V, oMinor, oMajor);
+    if (shape === 'rect') {
+      const targetV = mode === 'velocity' ? tVel : Vround;
+      const { w, h } = rectFromVelocity(Q, targetV, cW, cH);
+      const dEqR = rectEquivRound(w, h);
+      const Vr = Q * 144 / (w * h);
+      const Fr = calcFriction(Q, dEqR);
+      const ar = Math.max(w, h) / Math.min(w, h);
+      return { kind: 'rect', dia: finalDia, Vround, Fround, w, h, Vr, Fr, ar };
+    } else {
+      const targetV = mode === 'velocity' ? tVel : Vround;
+      const { minor, major } = ovalFromVelocity(Q, targetV, cMinor, cMajor);
+      const dEqO = ovalEquivRound(minor, major);
+      const areaIn2 = (Math.PI * minor * minor / 4) + minor * (major - minor);
+      const Vo = Q * 144 / areaIn2;
+      const Fo = calcFriction(Q, dEqO);
+      return { kind: 'oval', dia: finalDia, Vround, Fround, minor, major, Vo, Fo };
+    }
+  })();
 
-    setResults({
-      stdD, V: Math.round(V), fr: frActual.toFixed(2),
-      rectW: rect.w, rectH: rect.h, ar: rect.ar,
-      arWarn: parseFloat(rect.ar) > 4,
-      ovalMinor: oval.minor, ovalMajor: oval.major,
-    });
-  }
-
-  // Live metrics for the manual explorer
-  const Q          = parseFloat(cfm) || 0;
-  const maxFrNum   = parseFloat(manualMaxFr)  || 0;
-  const maxVelNum  = parseFloat(manualMaxVel) || 0;
-
+  // Live metrics for explorer rows
   function roundMetrics() {
-    if (!Q || !manualRoundDia) return null;
-    return { dia: manualRoundDia, V: calcVelocity(Q, manualRoundDia), fr: calcFriction(Q, manualRoundDia) };
+    if (!Q || !roundDia) return null;
+    return { dia: roundDia, V: calcVelocity(Q, roundDia), fr: calcFriction(Q, roundDia) };
   }
   function rectMetrics(r) {
     if (!Q) return null;
     const dEq = rectEquivRound(r.w, r.h);
-    const V   = Q * 144 / (r.w * r.h);
-    return { V, fr: calcFriction(Q, dEq), ar: Math.max(r.w, r.h) / Math.min(r.w, r.h), dEq };
+    return { V: Q * 144 / (r.w * r.h), fr: calcFriction(Q, dEq), ar: Math.max(r.w, r.h) / Math.min(r.w, r.h) };
   }
-  const overVel = v => (manualMode === 'velocity' || manualMode === 'both') && maxVelNum > 0 && v > maxVelNum;
-  const overFr  = f => (manualMode === 'friction' || manualMode === 'both') && maxFrNum  > 0 && f > maxFrNum;
+  function ovalMetrics(o) {
+    if (!Q) return null;
+    const dEq = ovalEquivRound(o.minor, o.major);
+    const areaIn2 = (Math.PI * o.minor * o.minor / 4) + o.minor * (o.major - o.minor);
+    return { V: Q * 144 / areaIn2, fr: calcFriction(Q, dEq) };
+  }
+  const overVel = v => fVel > 0 && v > fVel;
+  const overFr  = f => fFr  > 0 && f > fFr;
+
+  // ── Styles (CSS variables for light/dark) ──────────────────────────────────
+  const inp = { background: 'var(--bg-input)', border: '0.5px solid var(--border-primary)', borderRadius: '6px', padding: '7px 10px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none', width: '100%' };
+  const lbl = { fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: '4px' };
+  const card = { background: 'var(--bg-card)', border: '0.5px solid var(--border-primary)', borderRadius: '10px', padding: '18px', marginBottom: '12px' };
+  const secH = { fontSize: '11px', fontWeight: 500, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px' };
+  const cite = { fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '10px', fontStyle: 'italic' };
+  const stepperBtn = { background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: '2px 4px' };
+  const tabBtn = (active) => ({
+    flex: 1, padding: '10px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
+    cursor: 'pointer', border: 'none',
+    background: active ? 'var(--brand)' : 'transparent',
+    color: active ? 'white' : 'var(--text-secondary)',
+    transition: 'background 0.15s, color 0.15s',
+  });
+  const pillBtn = (active) => ({
+    padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+    border: '0.5px solid var(--border-primary)',
+    background: active ? 'var(--bg-accent)' : 'var(--bg-tertiary)',
+    color: active ? 'var(--brand)' : 'var(--text-secondary)',
+  });
+
+  const numStr = (v, d=0) => v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  function Stepper({ onUp, onDown }) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+        <button style={stepperBtn} onClick={onUp} aria-label="Increase">▲</button>
+        <button style={stepperBtn} onClick={onDown} aria-label="Decrease">▼</button>
+      </div>
+    );
+  }
+  function MetricCell({ value, unit, over }) {
+    return (
+      <span style={{ fontSize: '13px', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: over ? '#d97706' : 'var(--text-primary)' }}>
+        {value}
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '3px' }}>{unit}</span>
+      </span>
+    );
+  }
+
+  const rowStyle = { display: 'grid', alignItems: 'center', gap: '12px', padding: '9px 4px', borderBottom: '0.5px solid var(--border-primary)' };
+  const sectionBar = (color) => ({ borderLeft: `3px solid ${color}`, paddingLeft: '14px', marginTop: '4px', marginBottom: '18px' });
+
+  const COLOR_ROUND = 'var(--brand)';
+  const COLOR_RECT  = '#10b981';
+  const COLOR_OVAL  = '#f59e0b';
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-6xl mx-auto px-4 py-12">
+    <main style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: '24px 20px 48px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
 
-        <a href="/" className="text-sm text-gray-500 hover:text-gray-300 transition mb-4 inline-block">← Back to tools</a>
-        <h1 className="text-3xl font-bold text-blue-400 mb-8">Duct Sizer</h1>
+        <a href="/" style={{ fontSize: '12px', color: 'var(--text-tertiary)', textDecoration: 'none', marginBottom: '14px', display: 'inline-block' }}>← Back to tools</a>
 
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div style={{ marginBottom: '18px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 500, letterSpacing: '-0.2px', marginBottom: '4px' }}>
+            <span style={{ color: 'var(--brand)' }}>Duct</span>
+            <span style={{ color: 'var(--text-secondary)' }}> Sizer</span>
+          </h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+            Equal-friction sizing · ASHRAE HoF 2021 Ch. 21 · SMACNA HVAC Duct Construction Standards
+          </p>
+        </div>
 
-          {/* ── LEFT: Calculator ── */}
-          <div className="w-full lg:w-1/2 space-y-4">
+        {/* Shape tabs */}
+        <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-tertiary)', padding: '4px', borderRadius: '10px', border: '0.5px solid var(--border-primary)', marginBottom: '10px' }}>
+          <button style={tabBtn(shape === 'rect')} onClick={() => setShape('rect')}>Round &amp; Rectangular</button>
+          <button style={tabBtn(shape === 'oval')} onClick={() => setShape('oval')}>Flat Oval</button>
+        </div>
 
-            {/* Shape / Mode Tabs */}
-            <div className="grid grid-cols-3 gap-2 bg-gray-900 rounded-2xl p-2">
-              {[['manual','✎  Manual'],['round','⬤  Round & Rect'],['oval','▬  Flat Oval']].map(([k,l]) => (
-                <button key={k} onClick={() => setTab(k)}
-                  className={`py-3 rounded-xl text-sm font-medium transition
-                    ${tab === k ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
-                  {l}
-                </button>
-              ))}
+        {/* Sub-mode pills */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <button style={pillBtn(mode === 'both')}     onClick={() => setMode('both')}>Both Constraints</button>
+          <button style={pillBtn(mode === 'friction')} onClick={() => setMode('friction')}>Friction Rate Only</button>
+          <button style={pillBtn(mode === 'velocity')} onClick={() => setMode('velocity')}>Velocity Only</button>
+        </div>
+
+        {/* Inputs card */}
+        <div style={card}>
+          <p style={secH}>Inputs</p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 140px' }}>
+              <label style={lbl}>Airflow (CFM)</label>
+              <input style={inp} type="number" value={cfm} autoFocus onChange={e => setCfm(e.target.value)} placeholder="e.g. 2000" />
             </div>
 
-            {/* Inputs */}
-            <div className="bg-gray-900 rounded-2xl p-6 space-y-5">
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Airflow (CFM)</label>
-                <input type="number" value={cfm} autoFocus
-                  onChange={e => setCfm(e.target.value)}
-                  placeholder="e.g. 2000"
-                  className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white text-lg outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-
-              {tab === 'manual' && (
-                <>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">Constraint</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[['friction','Friction Only'],['velocity','Velocity Only'],['both','Both']].map(([k,l]) => (
-                        <button key={k} onClick={() => setManualMode(k)}
-                          className={`py-2 rounded-lg text-sm font-medium transition
-                            ${manualMode === k ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {(manualMode === 'velocity' || manualMode === 'both') && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Max Velocity (FPM)</label>
-                      <input type="number" value={manualMaxVel}
-                        onChange={e => setManualMaxVel(e.target.value)}
-                        placeholder="e.g. 800"
-                        className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  )}
-
-                  {(manualMode === 'friction' || manualMode === 'both') && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Max Static Loss (in. w.g. / 100 ft)</label>
-                      <input type="number" step="0.01" value={manualMaxFr}
-                        onChange={e => setManualMaxFr(e.target.value)}
-                        placeholder="e.g. 0.08"
-                        className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  )}
-
-                  <button onClick={regenerateManual}
-                    className="w-full text-xs text-gray-400 hover:text-blue-400 py-2 border border-gray-700 hover:border-blue-700 rounded-lg transition">
-                    ↻ Regenerate suggestions from constraints
-                  </button>
-
-                  <p className="text-xs text-gray-600">Step any size with ▲▼ to compare velocity & friction at fixed airflow.</p>
-                </>
-              )}
-
-              {tab !== 'manual' && (
-                <>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">Sizing Method</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[['friction','Friction Rate'],['velocity','Velocity'],['both','Both']].map(([k,l]) => (
-                        <button key={k} onClick={() => setMethod(k)}
-                          className={`py-2 rounded-lg text-sm font-medium transition
-                            ${method === k ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {(method === 'friction' || method === 'both') && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">Friction Rate (in. w.g. / 100 ft)</label>
-                      <input type="number" value={fr} onChange={e => setFr(e.target.value)}
-                        placeholder="e.g. 0.1"
-                        className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  )}
-
-                  {(method === 'velocity' || method === 'both') && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-1">
-                        {method === 'both' ? 'Max Velocity (FPM)' : 'Target Velocity (FPM)'}
-                      </label>
-                      <input type="number" value={velTarget} onChange={e => setVelTarget(e.target.value)}
-                        placeholder="e.g. 1000"
-                        className="w-full bg-gray-800 rounded-lg px-4 py-3 text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  )}
-
-                  {tab === 'round' && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-2">Rectangular Constraint (optional)</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Max Width (in)</label>
-                          <input type="number" value={maxW}
-                            onChange={e => { setMaxW(e.target.value); if (e.target.value) setMaxH(''); }}
-                            placeholder="e.g. 24"
-                            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Max Height (in)</label>
-                          <input type="number" value={maxH}
-                            onChange={e => { setMaxH(e.target.value); if (e.target.value) setMaxW(''); }}
-                            placeholder="e.g. 12"
-                            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">Set one — the other calculates automatically</p>
-                    </div>
-                  )}
-
-                  {tab === 'oval' && (
-                    <div>
-                      <label className="block text-sm text-gray-400 mb-2">Oval Constraint (optional)</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Max Major Axis (in)</label>
-                          <input type="number" value={ovalMajorConstraint}
-                            onChange={e => { setOvalMajorConstraint(e.target.value); if (e.target.value) setOvalMinorConstraint(''); }}
-                            placeholder="e.g. 36"
-                            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Max Minor Axis (in)</label>
-                          <input type="number" value={ovalMinorConstraint}
-                            onChange={e => { setOvalMinorConstraint(e.target.value); if (e.target.value) setOvalMajorConstraint(''); }}
-                            placeholder="e.g. 12"
-                            className="w-full bg-gray-800 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">Set one — the other calculates automatically</p>
-                    </div>
-                  )}
-                </>
-              )}
-
-            </div>
-
-            {warning && tab !== 'manual' && (
-              <div className="bg-blue-900/40 border border-blue-700 rounded-xl px-4 py-3">
-                <p className="text-blue-300 text-sm">ℹ️ {warning}</p>
-              </div>
-            )}
-
-            {/* Sizing Results (Round/Oval tabs) */}
-            {results && tab !== 'manual' && (
-              <div className="bg-gray-900 rounded-2xl p-6 space-y-4">
-                <h2 className="text-lg font-semibold text-gray-200">Results</h2>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-800 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 mb-1">Velocity</p>
-                    <p className="text-2xl font-bold text-blue-400">{results.V}</p>
-                    <p className="text-sm text-gray-400">FPM</p>
-                  </div>
-                  <div className="bg-gray-800 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 mb-1">Actual Friction</p>
-                    <p className="text-2xl font-bold text-blue-400">{results.fr}</p>
-                    <p className="text-sm text-gray-400">in. w.g. / 100 ft</p>
-                  </div>
+            {mode === 'both' && (
+              <>
+                <div style={{ flex: '1 1 140px' }}>
+                  <label style={lbl}>Max Velocity (FPM)</label>
+                  <input style={inp} type="number" value={explMaxVel} onChange={e => setExplMaxVel(e.target.value)} placeholder="e.g. 800" />
                 </div>
+                <div style={{ flex: '1 1 140px' }}>
+                  <label style={lbl}>Max Static Loss (in. w.g./100 ft)</label>
+                  <input style={inp} type="number" step="0.01" value={explMaxFr} onChange={e => setExplMaxFr(e.target.value)} placeholder="e.g. 0.08" />
+                </div>
+              </>
+            )}
 
-                {tab === 'round' && (
-                  <>
-                    <div className="bg-gray-800 rounded-xl p-4">
-                      <p className="text-xs text-gray-400 mb-1">Round Duct</p>
-                      <p className="text-2xl font-bold text-blue-400">{results.stdD}"</p>
-                      <p className="text-sm text-gray-500">Standard size</p>
-                    </div>
-                    <div className={`rounded-xl p-4 ${results.arWarn ? 'bg-yellow-900/40 border border-yellow-700' : 'bg-gray-800'}`}>
-                      <p className="text-xs text-gray-400 mb-1">Rectangular Duct</p>
-                      <p className="text-2xl font-bold text-blue-400">{results.rectW}" × {results.rectH}"</p>
-                      <p className="text-sm text-gray-500">Aspect ratio {results.ar}:1</p>
-                      {results.arWarn && (
-                        <p className="text-yellow-400 text-xs mt-2">⚠️ Exceeds 4:1 — not recommended per SMACNA</p>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {tab === 'oval' && (
-                  <div className="bg-gray-800 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 mb-1">Flat Oval Duct</p>
-                    <p className="text-2xl font-bold text-blue-400">{results.ovalMajor}" × {results.ovalMinor}"</p>
-                    <p className="text-sm text-gray-500">Major × Minor axis</p>
-                  </div>
-                )}
+            {mode === 'friction' && (
+              <div style={{ flex: '1 1 140px' }}>
+                <label style={lbl}>Friction Rate (in. w.g./100 ft)</label>
+                <input style={inp} type="number" step="0.01" value={targetFr} onChange={e => setTargetFr(e.target.value)} placeholder="e.g. 0.1" />
               </div>
             )}
 
-            {/* Manual Explorer */}
-            {tab === 'manual' && (
-              <div className="bg-gray-900 rounded-2xl p-6 space-y-5">
-                {!Q ? (
-                  <p className="text-sm text-gray-500 text-center py-6">Enter airflow above to see candidate sizes.</p>
-                ) : (
-                  <>
-                    {/* Round */}
-                    {(() => {
-                      const m = roundMetrics();
-                      if (!m) return null;
-                      const vViol = overVel(m.V);
-                      const fViol = overFr(m.fr);
-                      return (
-                        <div className="border-l-4 border-blue-600 pl-4">
-                          <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Round Duct (in)</h3>
-                          <div className="grid grid-cols-[28px_1fr_auto] items-center gap-3">
-                            <div className="flex flex-col items-center">
-                              <button onClick={() => stepRound(1)}
-                                className="text-gray-500 hover:text-blue-400 text-xs leading-none">▲</button>
-                              <button onClick={() => stepRound(-1)}
-                                className="text-gray-500 hover:text-blue-400 text-xs leading-none mt-1">▼</button>
-                            </div>
-                            <p className="text-2xl font-bold text-blue-400">
-                              {m.dia} <span className="text-base text-gray-500">Ø</span>
-                            </p>
-                            <div className="text-right font-mono">
-                              <p className={`text-sm ${vViol ? 'text-orange-400' : 'text-gray-300'}`}>
-                                {Math.round(m.V)}<span className="text-xs text-gray-500"> FPM</span>
-                              </p>
-                              <p className={`text-sm ${fViol ? 'text-orange-400' : 'text-gray-300'}`}>
-                                {m.fr.toFixed(2)}<span className="text-xs text-gray-500"> in.wg/100ft</span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Rectangular candidates */}
-                    {manualRects.length > 0 && (
-                      <div className="border-l-4 border-green-600 pl-4">
-                        <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Rectangular Duct (in × in)</h3>
-                        <div className="space-y-3">
-                          {manualRects.map((r, i) => {
-                            const m = rectMetrics(r);
-                            if (!m) return null;
-                            const vViol = overVel(m.V);
-                            const fViol = overFr(m.fr);
-                            const arWarn = m.ar > 4;
-                            return (
-                              <div key={i} className="grid grid-cols-[28px_auto_28px_1fr_auto] items-center gap-3">
-                                <div className="flex flex-col items-center">
-                                  <button onClick={() => stepRect(i, 'w', 1)}
-                                    className="text-gray-500 hover:text-blue-400 text-xs leading-none">▲</button>
-                                  <button onClick={() => stepRect(i, 'w', -1)}
-                                    className="text-gray-500 hover:text-blue-400 text-xs leading-none mt-1">▼</button>
-                                </div>
-                                <p className="text-xl font-bold text-blue-400 tabular-nums">
-                                  {r.w}<span className="text-gray-500 mx-1">×</span>{r.h}
-                                </p>
-                                <div className="flex flex-col items-center">
-                                  <button onClick={() => stepRect(i, 'h', 1)}
-                                    className="text-gray-500 hover:text-blue-400 text-xs leading-none">▲</button>
-                                  <button onClick={() => stepRect(i, 'h', -1)}
-                                    className="text-gray-500 hover:text-blue-400 text-xs leading-none mt-1">▼</button>
-                                </div>
-                                <p className={`text-xs ${arWarn ? 'text-yellow-500' : 'text-gray-600'}`}>
-                                  {m.ar.toFixed(1)}:1{arWarn ? ' ⚠' : ''}
-                                </p>
-                                <div className="text-right font-mono">
-                                  <p className={`text-sm ${vViol ? 'text-orange-400' : 'text-gray-300'}`}>
-                                    {Math.round(m.V)}<span className="text-xs text-gray-500"> FPM</span>
-                                  </p>
-                                  <p className={`text-sm ${fViol ? 'text-orange-400' : 'text-gray-300'}`}>
-                                    {m.fr.toFixed(2)}<span className="text-xs text-gray-500"> in.wg/100ft</span>
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="text-xs text-gray-600 pt-2 border-t border-gray-800">
-                      Values in <span className="text-orange-400">orange</span> exceed the active constraint. Aspect ratio &gt; 4:1 flagged per SMACNA.
-                    </p>
-                  </>
-                )}
+            {mode === 'velocity' && (
+              <div style={{ flex: '1 1 140px' }}>
+                <label style={lbl}>Target Velocity (FPM)</label>
+                <input style={inp} type="number" value={targetVel} onChange={e => setTargetVel(e.target.value)} placeholder="e.g. 1000" />
               </div>
             )}
-
           </div>
 
-          {/* ── RIGHT: Reference Tables ── */}
-          <div className="w-full lg:w-1/2 space-y-4 lg:sticky lg:top-8">
+          {/* Constraints (single-result modes only) */}
+          {mode !== 'both' && (
+            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '0.5px solid var(--border-primary)' }}>
+              <p style={{ ...lbl, marginBottom: '8px' }}>Override Constraints (optional)</p>
+              {shape === 'rect' && (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 140px' }}>
+                    <label style={lbl}>Max Width (in)</label>
+                    <input style={inp} type="number" value={maxW}
+                      onChange={e => { setMaxW(e.target.value); if (e.target.value) setMaxH(''); }}
+                      placeholder="e.g. 24" />
+                  </div>
+                  <div style={{ flex: '1 1 140px' }}>
+                    <label style={lbl}>Max Height (in)</label>
+                    <input style={inp} type="number" value={maxH}
+                      onChange={e => { setMaxH(e.target.value); if (e.target.value) setMaxW(''); }}
+                      placeholder="e.g. 12" />
+                  </div>
+                </div>
+              )}
+              {shape === 'oval' && (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 140px' }}>
+                    <label style={lbl}>Max Major Axis (in)</label>
+                    <input style={inp} type="number" value={maxMajor}
+                      onChange={e => { setMaxMajor(e.target.value); if (e.target.value) setMaxMinor(''); }}
+                      placeholder="e.g. 36" />
+                  </div>
+                  <div style={{ flex: '1 1 140px' }}>
+                    <label style={lbl}>Max Minor Axis (in)</label>
+                    <input style={inp} type="number" value={maxMinor}
+                      onChange={e => { setMaxMinor(e.target.value); if (e.target.value) setMaxMajor(''); }}
+                      placeholder="e.g. 12" />
+                  </div>
+                </div>
+              )}
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '6px' }}>
+                Set one — the other dimension is computed automatically.
+              </p>
+            </div>
+          )}
+        </div>
 
-            <div className="bg-gray-900 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-gray-200 mb-4">Industry Velocity & Pressure Guide</h2>
-              <div className="grid grid-cols-3 gap-1 mb-2">
-                <span className="text-xs text-gray-500 font-medium">Application</span>
-                <span className="text-xs text-gray-500 font-medium text-center">Velocity (FPM)</span>
-                <span className="text-xs text-gray-500 font-medium text-right">Pressure</span>
+        {/* Results */}
+        {!Q ? (
+          <div style={{ ...card, textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', padding: '32px' }}>
+            Enter an airflow to see results.
+          </div>
+        ) : mode === 'both' ? (
+          /* ── Both mode: explorer ── */
+          <div style={card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <p style={{ ...secH, marginBottom: 0 }}>Candidate Sizes</p>
+              <button onClick={regenerate} style={{ background: 'transparent', border: '0.5px solid var(--border-primary)', color: 'var(--text-secondary)', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+                ↻ Reset
+              </button>
+            </div>
+
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: shape === 'rect' ? '24px 1fr 24px 64px 100px 120px' : '24px 1fr 24px 100px 120px', gap: '12px', padding: '0 4px 6px', borderBottom: '0.5px solid var(--border-primary)' }}>
+              <span></span>
+              <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Size</span>
+              <span></span>
+              {shape === 'rect' && <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AR</span>}
+              <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Velocity</span>
+              <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Friction</span>
+            </div>
+
+            {/* Round row */}
+            {(() => {
+              const m = roundMetrics();
+              if (!m) return null;
+              const cols = shape === 'rect' ? '24px 1fr 24px 64px 100px 120px' : '24px 1fr 24px 100px 120px';
+              return (
+                <div style={sectionBar(COLOR_ROUND)}>
+                  <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_ROUND, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Round Duct</p>
+                  <div style={{ ...rowStyle, gridTemplateColumns: cols, borderBottom: 'none' }}>
+                    <Stepper onUp={() => stepRound(1)} onDown={() => stepRound(-1)} />
+                    <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>{m.dia}<span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '14px' }}>Ø</span></span>
+                    <span></span>
+                    {shape === 'rect' && <span></span>}
+                    <span style={{ textAlign: 'right' }}><MetricCell value={numStr(m.V, 0)} unit="FPM" over={overVel(m.V)} /></span>
+                    <span style={{ textAlign: 'right' }}><MetricCell value={m.fr.toFixed(2)} unit="in.wg/100ft" over={overFr(m.fr)} /></span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Rect rows */}
+            {shape === 'rect' && rects.length > 0 && (
+              <div style={sectionBar(COLOR_RECT)}>
+                <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_RECT, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Rectangular Duct</p>
+                {rects.map((r, i) => {
+                  const m = rectMetrics(r);
+                  if (!m) return null;
+                  const arWarn = m.ar > 4;
+                  return (
+                    <div key={i} style={{ ...rowStyle, gridTemplateColumns: '24px 1fr 24px 64px 100px 120px', borderBottom: i === rects.length - 1 ? 'none' : '0.5px solid var(--border-primary)' }}>
+                      <Stepper onUp={() => stepRect(i, 'w',  1)} onDown={() => stepRect(i, 'w', -1)} />
+                      <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {r.w}<span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>×</span>{r.h}
+                      </span>
+                      <Stepper onUp={() => stepRect(i, 'h',  1)} onDown={() => stepRect(i, 'h', -1)} />
+                      <span style={{ fontSize: '11px', color: arWarn ? '#d97706' : 'var(--text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {m.ar.toFixed(1)}:1{arWarn ? ' ⚠' : ''}
+                      </span>
+                      <span style={{ textAlign: 'right' }}><MetricCell value={numStr(m.V, 0)} unit="FPM" over={overVel(m.V)} /></span>
+                      <span style={{ textAlign: 'right' }}><MetricCell value={m.fr.toFixed(2)} unit="in.wg/100ft" over={overFr(m.fr)} /></span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Oval rows */}
+            {shape === 'oval' && ovals.length > 0 && (
+              <div style={sectionBar(COLOR_OVAL)}>
+                <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_OVAL, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Flat Oval Duct (Major × Minor)</p>
+                {ovals.map((o, i) => {
+                  const m = ovalMetrics(o);
+                  if (!m) return null;
+                  return (
+                    <div key={i} style={{ ...rowStyle, gridTemplateColumns: '24px 1fr 24px 100px 120px', borderBottom: i === ovals.length - 1 ? 'none' : '0.5px solid var(--border-primary)' }}>
+                      <Stepper onUp={() => stepOval(i, 'major',  1)} onDown={() => stepOval(i, 'major', -1)} />
+                      <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {o.major}<span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>×</span>{o.minor}
+                      </span>
+                      <Stepper onUp={() => stepOval(i, 'minor',  1)} onDown={() => stepOval(i, 'minor', -1)} />
+                      <span style={{ textAlign: 'right' }}><MetricCell value={numStr(m.V, 0)} unit="FPM" over={overVel(m.V)} /></span>
+                      <span style={{ textAlign: 'right' }}><MetricCell value={m.fr.toFixed(2)} unit="in.wg/100ft" over={overFr(m.fr)} /></span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p style={cite}>
+              Equal-friction method · Round diameter from ASHRAE HoF 2021 Ch. 21 Eq. 11 ·
+              Rectangular equivalent De = 1.30·(ab)^0.625 / (a+b)^0.25 (Eq. 24) ·
+              Flat-oval equivalent De = 1.55·A^0.625 / P^0.25 (Eq. 25). Values shown in
+              <span style={{ color: '#d97706' }}> orange</span> exceed the active constraint.
+            </p>
+          </div>
+        ) : (
+          /* ── Friction Only / Velocity Only: single result ── */
+          singleResult && (
+            <div style={card}>
+              <p style={secH}>Recommended Size</p>
+
+              {/* Round */}
+              <div style={sectionBar(COLOR_ROUND)}>
+                <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_ROUND, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Round Duct</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0' }}>
+                  <span style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)' }}>{singleResult.dia}<span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '16px' }}>Ø in</span></span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div><MetricCell value={numStr(singleResult.Vround, 0)} unit="FPM" /></div>
+                    <div style={{ marginTop: '2px' }}><MetricCell value={singleResult.Fround.toFixed(2)} unit="in.wg/100ft" /></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rect or Oval equivalent */}
+              {singleResult.kind === 'rect' && (
+                <div style={sectionBar(COLOR_RECT)}>
+                  <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_RECT, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Rectangular Equivalent</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0' }}>
+                    <span style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {singleResult.w}<span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>×</span>{singleResult.h}
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '16px' }}>in</span>
+                    </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div><MetricCell value={numStr(singleResult.Vr, 0)} unit="FPM" /></div>
+                      <div style={{ marginTop: '2px' }}><MetricCell value={singleResult.Fr.toFixed(2)} unit="in.wg/100ft" /></div>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '11px', color: singleResult.ar > 4 ? '#d97706' : 'var(--text-tertiary)', marginTop: '4px' }}>
+                    Aspect ratio {singleResult.ar.toFixed(1)}:1{singleResult.ar > 4 ? ' — exceeds 4:1, not recommended per SMACNA' : ''}
+                  </p>
+                </div>
+              )}
+
+              {singleResult.kind === 'oval' && (
+                <div style={sectionBar(COLOR_OVAL)}>
+                  <p style={{ fontSize: '10px', fontWeight: 500, color: COLOR_OVAL, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>Flat Oval (Major × Minor)</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '6px 0' }}>
+                    <span style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {singleResult.major}<span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>×</span>{singleResult.minor}
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '8px', fontSize: '16px' }}>in</span>
+                    </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div><MetricCell value={numStr(singleResult.Vo, 0)} unit="FPM" /></div>
+                      <div style={{ marginTop: '2px' }}><MetricCell value={singleResult.Fo.toFixed(2)} unit="in.wg/100ft" /></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p style={cite}>
+                {mode === 'friction'
+                  ? 'Equal-friction sizing · D = (0.109·Q^1.9 / Δp)^0.199 · ASHRAE HoF 2021 Ch. 21 Eq. 11'
+                  : 'Velocity sizing · D = √(Q/V·144/π) · ASHRAE HoF 2021 Ch. 21'}
+                {singleResult.kind === 'rect' ? ' · Rect De = 1.30·(ab)^0.625 / (a+b)^0.25 (Eq. 24)' : ' · Oval De = 1.55·A^0.625 / P^0.25 (Eq. 25)'}
+              </p>
+            </div>
+          )
+        )}
+
+        {/* Collapsible reference */}
+        <div style={card}>
+          <button onClick={() => setRefOpen(o => !o)}
+            style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)' }}>
+            <span style={{ ...secH, marginBottom: 0 }}>Reference — Velocity &amp; Pressure Guides</span>
+            <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{refOpen ? '−' : '+'}</span>
+          </button>
+
+          {refOpen && (
+            <div style={{ marginTop: '14px' }}>
+              <p style={{ ...lbl, marginBottom: '6px' }}>Industry Velocity &amp; Pressure</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '4px', padding: '4px 6px', borderBottom: '0.5px solid var(--border-primary)' }}>
+                <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Application</span>
+                <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Velocity (FPM)</span>
+                <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Pressure</span>
               </div>
               {VELOCITY_GUIDE.map((g, i) => (
-                <div key={i} className="grid grid-cols-3 gap-1 py-2 border-b border-gray-800 last:border-0 items-center">
-                  <span className="text-xs text-gray-400">{g.application}</span>
-                  <span className="text-xs font-medium text-blue-400 text-center">{g.velocity}</span>
-                  <span className="text-xs text-gray-300 text-right">{g.pressure}</span>
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '4px', padding: '6px', borderBottom: i === VELOCITY_GUIDE.length - 1 ? 'none' : '0.5px solid var(--border-primary)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{g.application}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 500, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{g.velocity}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right' }}>{g.pressure}</span>
                 </div>
               ))}
-              <p className="text-xs text-gray-600 mt-3">Based on industry practice & SMACNA HVAC Duct Construction Standards</p>
-            </div>
 
-            <div className="bg-gray-900 rounded-2xl p-5">
-              <h2 className="text-sm font-semibold text-gray-200 mb-4">SMACNA Pressure Classes</h2>
-              <div className="grid grid-cols-2 gap-1 mb-2">
-                <span className="text-xs text-gray-500 font-medium">Pressure Class</span>
-                <span className="text-xs text-gray-500 font-medium text-right">Operating Pressure</span>
+              <p style={{ ...lbl, marginTop: '18px', marginBottom: '6px' }}>SMACNA Pressure Classes</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4px', padding: '4px 6px', borderBottom: '0.5px solid var(--border-primary)' }}>
+                <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Class</span>
+                <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Operating Pressure</span>
               </div>
               {PRESSURE_CLASSES.map((p, i) => (
-                <div key={i} className="grid grid-cols-2 gap-1 py-2 border-b border-gray-800 last:border-0">
-                  <span className="text-xs font-medium text-blue-400">{p.class}</span>
-                  <span className="text-xs text-gray-400 text-right">{p.operating}</span>
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4px', padding: '6px', borderBottom: i === PRESSURE_CLASSES.length - 1 ? 'none' : '0.5px solid var(--border-primary)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--brand)', fontWeight: 500 }}>{p.class}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'right' }}>{p.operating}</span>
                 </div>
               ))}
-              <p className="text-xs text-gray-600 mt-3">Source: SMACNA HVAC Duct Construction Standards, 4th Edition</p>
-            </div>
 
-          </div>
+              <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '12px' }}>
+                Sources: SMACNA HVAC Duct Construction Standards (4th ed.) · ASHRAE Handbook — Fundamentals 2021, Ch. 21.
+              </p>
+            </div>
+          )}
         </div>
+
       </div>
     </main>
   );
